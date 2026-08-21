@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Deploy after every code change
+
+This repo is pushed to a private GitHub repository (`grv78dev/volleystat`, remote `origin`, branch `main`). After making any code change (not docs-only chatter), in addition to whatever else the task requires: `git add` the relevant files, commit with a message describing the change, and `git push`. Do this without asking for confirmation each time — it's pre-authorized. `data/` stays gitignored (real player data, including minors) and must never be committed.
+
 ## What this project is
 
 VolleyStat is an offline-first, single-user web app for tracking volleyball match statistics in real time. It is written in Italian and designed for Italian-speaking volleyball teams. The entire backend is a single Flask file (`app.py`, ~2550 lines) with Jinja2 templates and file-based JSON storage. There is no database, no test suite, and no build step.
