@@ -1,0 +1,843 @@
+{% extends "base.html" %}
+{% block title %}Statistiche — vs {{ match.opponent }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('match_view', cat_id=cat.id, match_id=match.id) }}" class="back-link">← Partita</a>
+    <h1>Statistiche — vs {{ match.opponent }}</h1>
+  </div>
+  <div class="header-meta">
+    <span class="tag">{{ match.date[:10] }}</span>
+    <a href="{{ url_for('report_sintetico', cat_id=cat.id, match_id=match.id) }}" class="btn btn-accent" target="_blank">Scheda Sintetica</a>
+    <a href="{{ url_for('esporta_ai', cat_id=cat.id, match_id=match.id) }}" class="btn btn-ai">Analisi AI</a>
+    <a href="{{ url_for('report_view', cat_id=cat.id, match_id=match.id) }}" class="btn btn-accent" target="_blank">Stampa / PDF</a>
+  </div>
+</div>
+
+<!-- RIEPILOGO -->
+<section class="card">
+  <div class="card-header"><span class="card-icon">🏆</span><h2>Riepilogo Partita</h2></div>
+  <div class="match-summary">
+    <div class="summary-score">
+      <span class="summary-team">Noi</span>
+      <span class="summary-sets {% if match.sets_us > match.sets_them %}winner{% endif %}">{{ match.sets_us }}</span>
+      <span class="summary-dash">–</span>
+      <span class="summary-sets {% if match.sets_them > match.sets_us %}winner{% endif %}">{{ match.sets_them }}</span>
+      <span class="summary-team">{{ match.opponent }}</span>
+    </div>
+    <div class="sets-detail">
+      {% for s in sets %}
+      <div class="set-detail-item">
+        <span class="sd-label">Set {{ s.number }}</span>
+        <span class="sd-score {% if s.state.score_us > s.state.score_them %}sd-win{% else %}sd-loss{% endif %}">
+          {{ s.state.score_us }} – {{ s.state.score_them }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- MACRO helper -->
+{% macro pct_cell(val, good_threshold=50) %}
+  {% if val is none %}
+    <td class="muted-cell">—</td>
+  {% elif val >= good_threshold %}
+    <td class="pct-good"><b>{{ val }}%</b></td>
+  {% elif val >= 0 %}
+    <td class="pct-mid">{{ val }}%</td>
+  {% else %}
+    <td class="pct-bad">{{ val }}%</td>
+  {% endif %}
+{% endmacro %}
+
+<!-- STATISTICHE TOTALI -->
+<section class="card">
+  <div class="card-header"><span class="card-icon">[stats] </span><h2>Statistiche Totali Partita</h2></div>
+
+  <!-- PALLEGGIATORE — HEATMAP E DISTRIBUZIONE -->
+  {% if setter_stats and setter_stats.total_sets > 0 %}
+  <h3 class="stat-section-title">Palleggiatore — Heatmap Zona e Distribuzione</h3>
+
+  <div class="setter-analysis">
+
+    <!-- Heatmap SVG campo 6 zone -->
+    <div class="setter-heatmap-wrap">
+      <div class="setter-heatmap-label">Zone di alzata ({{ setter_stats.total_sets }} alzate totali)</div>
+      {% set hm = setter_stats.heatmap %}
+      {% set max_z = hm.values()|max|default(1) %}
+      <svg class="court-heatmap" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
+        <!-- Rete -->
+        <line x1="0" y1="100" x2="300" y2="100" stroke="#b6f000" stroke-width="3"/>
+        <text x="150" y="96" text-anchor="middle" font-size="9" fill="#b6f000" font-weight="bold">RETE</text>
+        <!-- Zone — layout: 4·3·2 davanti / 5·6·1 dietro (dal lato nostra squadra) -->
+        {% set zones_front = [(4,0),(3,100),(2,200)] %}
+        {% set zones_back  = [(5,0),(6,100),(1,200)] %}
+        {% for z,x in [(4,0),(3,100),(2,200)] %}
+          {% set cnt = hm.get(z,0) %}
+          {% set alpha = (cnt / max_z * 0.85)|round(2) if max_z > 0 else 0 %}
+          <rect x="{{ x+1 }}" y="1" width="98" height="97"
+                fill="{{ cat.color }}" fill-opacity="{{ alpha }}"
+                stroke="#30363d" stroke-width="1" rx="3"/>
+          <text x="{{ x+50 }}" y="30" text-anchor="middle" font-size="22" font-weight="900"
+                fill="{{ '#0d1117' if alpha > 0.5 else cat.color }}">{{ cnt }}</text>
+          <text x="{{ x+50 }}" y="48" text-anchor="middle" font-size="10"
+                fill="{{ '#0d1117' if alpha > 0.5 else '#8b949e' }}">Zona {{ z }}</text>
+          {% if setter_stats.total_sets > 0 %}
+          <text x="{{ x+50 }}" y="64" text-anchor="middle" font-size="9"
+                fill="{{ '#0d1117' if alpha > 0.5 else '#8b949e' }}">
+            {{ (cnt / setter_stats.total_sets * 100)|round|int }}%
+          </text>
+          {% endif %}
+        {% endfor %}
+        {% for z,x in [(5,0),(6,100),(1,200)] %}
+          {% set cnt = hm.get(z,0) %}
+          {% set alpha = (cnt / max_z * 0.85)|round(2) if max_z > 0 else 0 %}
+          <rect x="{{ x+1 }}" y="103" width="98" height="96"
+                fill="{{ cat.color }}" fill-opacity="{{ alpha }}"
+                stroke="#30363d" stroke-width="1" rx="3"/>
+          <text x="{{ x+50 }}" y="133" text-anchor="middle" font-size="22" font-weight="900"
+                fill="{{ '#0d1117' if alpha > 0.5 else cat.color }}">{{ cnt }}</text>
+          <text x="{{ x+50 }}" y="151" text-anchor="middle" font-size="10"
+                fill="{{ '#0d1117' if alpha > 0.5 else '#8b949e' }}">Zona {{ z }}</text>
+          {% if setter_stats.total_sets > 0 %}
+          <text x="{{ x+50 }}" y="167" text-anchor="middle" font-size="9"
+                fill="{{ '#0d1117' if alpha > 0.5 else '#8b949e' }}">
+            {{ (cnt / setter_stats.total_sets * 100)|round|int }}%
+          </text>
+          {% endif %}
+        {% endfor %}
+        <!-- Divisori verticali -->
+        <line x1="100" y1="0" x2="100" y2="200" stroke="#30363d" stroke-width="1"/>
+        <line x1="200" y1="0" x2="200" y2="200" stroke="#30363d" stroke-width="1"/>
+        <!-- Bordo -->
+        <rect x="0" y="0" width="300" height="200" fill="none" stroke="#30363d" stroke-width="2" rx="4"/>
+        <!-- Label lato -->
+        <text x="298" y="55"  text-anchor="end" font-size="8" fill="#8b949e">Davanti</text>
+        <text x="298" y="155" text-anchor="end" font-size="8" fill="#8b949e">Dietro</text>
+      </svg>
+      <div class="heatmap-legend">
+        <span class="legend-item">
+          <span class="legend-dot" style="background:{{ cat.color }}; opacity:0.85"></span> Alta frequenza
+        </span>
+        <span class="legend-item">
+          <span class="legend-dot" style="background:{{ cat.color }}; opacity:0.2"></span> Bassa frequenza
+        </span>
+      </div>
+    </div>
+
+    <!-- Distribuzione per attaccante -->
+    <div class="setter-dist-wrap">
+      <div class="setter-heatmap-label">Distribuzione per attaccante (totale partita)</div>
+      {% if setter_stats.totals %}
+      <table class="data-table setter-dist-table">
+        <thead>
+          <tr>
+            <th class="left">N°</th><th class="left">Atleta</th>
+            <th>Alzate</th><th>Kill</th><th>Cont.</th><th>Err.</th>
+            <th>Eff%</th><th>%&nbsp;alzate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set tot_alzate = setter_stats.totals.values()|map(attribute='total')|sum %}
+          {% for pnum, d in setter_stats.totals.items()|sort(attribute='1.total', reverse=True) %}
+          {% set info = p_by_num.get(pnum|int) %}
+          {% set pct_alz = (d.total / tot_alzate * 100)|round|int if tot_alzate > 0 else 0 %}
+          <tr>
+            <td><span class="jersey-num">{{ pnum }}</span></td>
+            <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+            <td><b>{{ d.total }}</b></td>
+            <td class="{{ 'stat-good' if d.kill > 0 }}">{{ d.kill }}</td>
+            <td>{{ d.cont }}</td>
+            <td class="{{ 'stat-bad' if d.err > 0 }}">{{ d.err }}</td>
+            <td class="{{ 'pct-good' if d.eff and d.eff >= 25 else 'pct-bad' if d.eff and d.eff < 0 else '' }}">
+              {{ d.eff|string + '%' if d.eff is not none else '—' }}
+            </td>
+            <td>
+              <div class="dist-bar-wrap">
+                <div class="dist-bar" style="width:{{ pct_alz }}%; background:{{ cat.color }}"></div>
+                <span class="dist-bar-label">{{ pct_alz }}%</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty-msg" style="padding:8px 0">
+        Nessun dato palleggiatore. Registra la zona con <kbd>W1</kbd>–<kbd>W6</kbd> prima di ogni attacco.
+      </p>
+      {% endif %}
+    </div>
+
+  </div><!-- /setter-analysis -->
+
+  <!-- Spostamento palleggiatore -->
+  {% if setter_stats.disp_summary and setter_stats.disp_summary.values()|sum > 0 %}
+  <div class="disp-section">
+    <div class="setter-heatmap-label" style="margin-bottom:8px">
+      Spostamento Palleggiatore — #{{ setter_stats.setter_num }}
+      {% if setter_stats.setter_num %}<span class="jersey-num" style="font-size:11px;margin-left:4px">{{ setter_stats.setter_num }}</span>{% endif %}
+    </div>
+    <div class="disp-cards">
+      {% for label in ['In zona','Corto','Lungo','Fuori zona'] %}
+      {% set cnt = setter_stats.disp_summary.get(label, 0) %}
+      {% set eff_d = setter_stats.disp_eff.get(label) %}
+      {% set tot_w = setter_stats.disp_summary.values()|sum %}
+      <div class="disp-card disp-{{ label|lower|replace(' ','') }}">
+        <div class="disp-card-label">{{ label }}</div>
+        <div class="disp-card-count">{{ cnt }}</div>
+        <div class="disp-card-pct">{{ (cnt/tot_w*100)|round|int }}% delle alzate</div>
+        {% if eff_d %}
+        <div class="disp-card-eff">
+          <span class="{{ 'stat-good' if eff_d.eff and eff_d.eff >= 25 else 'stat-bad' if eff_d.eff and eff_d.eff < 0 else '' }}">
+            Eff {{ eff_d.eff }}%
+          </span>
+          <span class="disp-card-detail">{{ eff_d.kill }}K / {{ eff_d.cont }}C / {{ eff_d.err }}E</span>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <p class="formula-legend" style="margin-top:6px">
+      <b>In zona</b> = prende dove dovrebbe stare (0 passi) &nbsp;·&nbsp;
+      <b>Corto</b> = 1 passo &nbsp;·&nbsp;
+      <b>Lungo</b> = 2 passi (diagonale) &nbsp;·&nbsp;
+      <b>Fuori zona</b> = 3 passi (traversata)
+      &nbsp;·&nbsp; Senza scambi di posizione
+    </p>
+  </div>
+  {% endif %}
+
+  <!-- Dettaglio per zona -->
+  {% set has_dist = setter_stats.distribution.values()|map('length')|sum > 0 %}
+  {% if has_dist %}
+  <div class="setter-zone-detail">
+    <div class="setter-heatmap-label" style="margin-bottom:8px">Dettaglio per zona di alzata</div>
+    <div class="zone-cards">
+      {% for z in [4,3,2,5,6,1] %}
+      {% set zd = setter_stats.distribution.get(z,{}) %}
+      {% set zcnt = setter_stats.heatmap.get(z,0) %}
+      {% if zcnt > 0 %}
+      <div class="zone-card">
+        <div class="zone-card-header" style="background:{{ cat.color }}">
+          Zona {{ z }} — {{ zone_names.get(z,'') }}
+          <span class="zone-card-cnt">{{ zcnt }} alzate</span>
+        </div>
+        <table class="zone-card-table">
+          <thead><tr><th>N°</th><th>Kill</th><th>Cont</th><th>Err</th><th>Eff%</th></tr></thead>
+          <tbody>
+            {% for pnum, d in zd.items()|sort(attribute='1.total', reverse=True) %}
+            {% set info = p_by_num.get(pnum|int) %}
+            <tr>
+              <td>
+                <span class="jersey-num" style="font-size:11px">{{ pnum }}</span>
+                {% if info %}<span style="font-size:11px;margin-left:3px">{{ info.name.split()[0] }}</span>{% endif %}
+              </td>
+              <td class="{{ 'stat-good' if d.kill }}">{{ d.kill }}</td>
+              <td>{{ d.cont }}</td>
+              <td class="{{ 'stat-bad' if d.err }}">{{ d.err }}</td>
+              <td class="{{ 'pct-good' if d.eff and d.eff>=25 else 'pct-bad' if d.eff and d.eff<0 else '' }}">
+                {{ d.eff|string+'%' if d.eff is not none else '—' }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <h3 class="stat-section-title">Palleggiatore — Heatmap Zona e Distribuzione</h3>
+  <p class="empty-msg">
+    Nessun dato palleggiatore registrato.<br>
+    Durante il match digita <kbd>W4</kbd> (palleggiatore in zona 4) prima di ogni attacco.
+    Le 6 zone seguono lo schema FIPAV: 4·3·2 davanti, 5·6·1 dietro.
+  </p>
+  {% endif %}
+
+  <!-- CONTINUITÀ DEL GIOCO -->
+  {% if continuity_stats and continuity_stats.team.rpos > 0 %}
+  {% set ct = continuity_stats.team %}
+  <h3 class="stat-section-title">Continuità del Gioco — Cambio Palla</h3>
+
+  <div class="cont-kpi-row">
+    <div class="cont-kpi {% if ct.conv_pct and ct.conv_pct >= 30 %}cont-kpi-good{% elif ct.conv_pct and ct.conv_pct < 20 %}cont-kpi-bad{% else %}cont-kpi-mid{% endif %}">
+      <div class="cont-kpi-val">{{ ct.conv_pct|string+'%' if ct.conv_pct is not none else '—' }}</div>
+      <div class="cont-kpi-lbl">Conversione</div>
+      <div class="cont-kpi-sub">Kill dopo R+ / R+ tot</div>
+      <div class="cont-kpi-ref">Buono ≥ 30%</div>
+    </div>
+    <div class="cont-kpi {% if ct.cont_pct and ct.cont_pct >= 70 %}cont-kpi-good{% elif ct.cont_pct and ct.cont_pct < 50 %}cont-kpi-bad{% else %}cont-kpi-mid{% endif %}">
+      <div class="cont-kpi-val">{{ ct.cont_pct|string+'%' if ct.cont_pct is not none else '—' }}</div>
+      <div class="cont-kpi-lbl">Continuità</div>
+      <div class="cont-kpi-sub">(Kill+Cont) dopo R+ / R+ tot</div>
+      <div class="cont-kpi-ref">Buono ≥ 70%</div>
+    </div>
+    <div class="cont-kpi {% if ct.disp_pct and ct.disp_pct <= 15 %}cont-kpi-good{% elif ct.disp_pct and ct.disp_pct > 25 %}cont-kpi-bad{% else %}cont-kpi-mid{% endif %}">
+      <div class="cont-kpi-val">{{ ct.disp_pct|string+'%' if ct.disp_pct is not none else '—' }}</div>
+      <div class="cont-kpi-lbl">Dispersione</div>
+      <div class="cont-kpi-sub">Errori dopo R+ / R+ tot</div>
+      <div class="cont-kpi-ref">Preoccupante > 20%</div>
+    </div>
+    <div class="cont-kpi">
+      <div class="cont-kpi-val">{{ ct.rpos }}</div>
+      <div class="cont-kpi-lbl">R+ totali</div>
+      <div class="cont-kpi-sub">{{ ct.kills }} Kill · {{ ct.cont }} Cont · {{ ct.err }} Err</div>
+      <div class="cont-kpi-ref">{{ ct.no_attack }} senza attacco</div>
+    </div>
+  </div>
+
+  <!-- Tabelle per ricettore e attaccante -->
+  {% if continuity_stats.by_receiver or continuity_stats.by_attacker %}
+  <div class="cont-tables">
+
+    {% if continuity_stats.by_receiver %}
+    <div>
+      <div class="setter-heatmap-label" style="margin-bottom:6px">Per Ricettore</div>
+      <table class="data-table" style="font-size:12px">
+        <thead><tr>
+          <th class="left">N°</th><th class="left">Atleta</th>
+          <th>R+</th><th>Kill</th><th>Cont</th><th>Err</th>
+          <th class="pct-header">Convers.%</th>
+          <th class="pct-header">Continu.%</th>
+          <th class="pct-header">Dispers.%</th>
+        </tr></thead>
+        <tbody>
+        {% for pnum, d in continuity_stats.by_receiver.items()|sort(attribute='1.rpos',reverse=True) %}
+        {% if d.rpos >= 2 %}
+        {% set info = p_by_num.get(pnum|int) %}
+        <tr>
+          <td><span class="jersey-num">{{ pnum }}</span></td>
+          <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+          <td><b>{{ d.rpos }}</b></td>
+          <td class="{{ 'stat-good' if d.kills }}">{{ d.kills }}</td>
+          <td>{{ d.cont }}</td>
+          <td class="{{ 'stat-bad' if d.err }}">{{ d.err }}</td>
+          <td class="{{ 'pct-good' if d.conv_pct and d.conv_pct>=30 else 'pct-bad' if d.conv_pct and d.conv_pct<20 else 'pct-mid' }}">
+            {{ d.conv_pct|string+'%' if d.conv_pct is not none else '—' }}
+          </td>
+          <td class="{{ 'pct-good' if d.cont_pct and d.cont_pct>=70 else 'pct-bad' if d.cont_pct and d.cont_pct<50 else 'pct-mid' }}">
+            {{ d.cont_pct|string+'%' if d.cont_pct is not none else '—' }}
+          </td>
+          <td class="{{ 'pct-bad' if d.disp_pct and d.disp_pct>25 else 'pct-good' if d.disp_pct and d.disp_pct<=15 else '' }}">
+            {{ d.disp_pct|string+'%' if d.disp_pct is not none else '—' }}
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if continuity_stats.by_attacker %}
+    <div>
+      <div class="setter-heatmap-label" style="margin-bottom:6px">Per Attaccante</div>
+      <table class="data-table" style="font-size:12px">
+        <thead><tr>
+          <th class="left">N°</th><th class="left">Atleta</th>
+          <th>Alz. da R+</th><th>Kill</th><th>Cont</th><th>Err</th>
+          <th class="pct-header">Convers.%</th>
+          <th class="pct-header">Dispers.%</th>
+        </tr></thead>
+        <tbody>
+        {% for pnum, d in continuity_stats.by_attacker.items()|sort(attribute='1.rpos_received',reverse=True) %}
+        {% if d.rpos_received >= 2 %}
+        {% set info = p_by_num.get(pnum|int) %}
+        <tr>
+          <td><span class="jersey-num">{{ pnum }}</span></td>
+          <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+          <td><b>{{ d.rpos_received }}</b></td>
+          <td class="{{ 'stat-good' if d.kills }}">{{ d.kills }}</td>
+          <td>{{ d.cont }}</td>
+          <td class="{{ 'stat-bad' if d.err }}">{{ d.err }}</td>
+          <td class="{{ 'pct-good' if d.conv_pct and d.conv_pct>=30 else 'pct-bad' if d.conv_pct and d.conv_pct<20 else 'pct-mid' }}">
+            {{ d.conv_pct|string+'%' if d.conv_pct is not none else '—' }}
+          </td>
+          <td class="{{ 'pct-bad' if d.disp_pct and d.disp_pct>25 else 'pct-good' if d.disp_pct and d.disp_pct<=15 else '' }}">
+            {{ d.disp_pct|string+'%' if d.disp_pct is not none else '—' }}
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+  </div>
+  {% endif %}
+
+  <div class="formula-legend">
+    <span><b>Conversione%</b> = Kill ÷ R+ × 100 &nbsp;·&nbsp; Buono ≥30%</span>
+    <span><b>Continuità%</b> = (Kill+Cont) ÷ R+ × 100 &nbsp;·&nbsp; Buono ≥70%</span>
+    <span><b>Dispersione%</b> = Errori ÷ R+ × 100 &nbsp;·&nbsp; Preoccupante >20%</span>
+  </div>
+  {% endif %}
+
+  <!-- ANALISI PER ROTAZIONE -->
+  {% if rotation_stats and rotation_stats.rotations %}
+  {% set rs = rotation_stats %}
+  {% set sm = rs.summary %}
+  <h3 class="stat-section-title">Analisi per Rotazione</h3>
+
+  <!-- Side-out e Break Point summary -->
+  <div class="rot-summary-row">
+    <div class="rot-kpi {% if sm.so_pct and sm.so_pct >= 55 %}rot-kpi-good{% elif sm.so_pct and sm.so_pct < 45 %}rot-kpi-bad{% else %}rot-kpi-mid{% endif %}">
+      <div class="rot-kpi-val">{{ sm.so_pct|string + '%' if sm.so_pct is not none else '—' }}</div>
+      <div class="rot-kpi-lbl">Side-out %</div>
+      <div class="rot-kpi-sub">{{ sm.so_won }}/{{ sm.so_tot }} punti in ricezione</div>
+      <div class="rot-kpi-ref">Buono ≥ 55%</div>
+    </div>
+    <div class="rot-kpi {% if sm.brk_pct and sm.brk_pct >= 35 %}rot-kpi-good{% elif sm.brk_pct and sm.brk_pct < 25 %}rot-kpi-bad{% else %}rot-kpi-mid{% endif %}">
+      <div class="rot-kpi-val">{{ sm.brk_pct|string + '%' if sm.brk_pct is not none else '—' }}</div>
+      <div class="rot-kpi-lbl">Break Point %</div>
+      <div class="rot-kpi-sub">{{ sm.brk_won }}/{{ sm.brk_tot }} punti al servizio</div>
+      <div class="rot-kpi-ref">Buono ≥ 35%</div>
+    </div>
+    {% if sm.best_rot %}
+    <div class="rot-kpi rot-kpi-good">
+      <div class="rot-kpi-val">{{ rs.rot_short[sm.best_rot] }}</div>
+      <div class="rot-kpi-lbl">Rotazione Migliore</div>
+      <div class="rot-kpi-sub">Saldo {{ '+' if rs.rotations[sm.best_rot].saldo >= 0 else '' }}{{ rs.rotations[sm.best_rot].saldo }}</div>
+    </div>
+    {% endif %}
+    {% if sm.worst_rot %}
+    <div class="rot-kpi rot-kpi-bad">
+      <div class="rot-kpi-val">{{ rs.rot_short[sm.worst_rot] }}</div>
+      <div class="rot-kpi-lbl">Rotazione Critica</div>
+      <div class="rot-kpi-sub">Saldo {{ rs.rotations[sm.worst_rot].saldo }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Tabella dettaglio rotazioni -->
+  <div class="stats-table-wrap">
+  <table class="data-table rot-table">
+    <thead>
+      <tr>
+        <th class="left">Rotazione</th>
+        <th>+Pt</th><th>–Pt</th><th>Saldo</th>
+        <th>SO vinti</th><th>SO tot.</th><th>SO%</th>
+        <th>Break vinti</th><th>Break tot.</th><th>Break%</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for slot in rs.rot_order %}
+      {% set r = rs.rotations[slot] %}
+      {% set tot = r.pts_scored + r.pts_lost %}
+      {% if tot > 0 %}
+      {% set is_best  = slot == sm.best_rot %}
+      {% set is_worst = slot == sm.worst_rot %}
+      <tr class="{% if is_best %}rot-row-best{% elif is_worst %}rot-row-worst{% endif %}">
+        <td class="left">
+          <span class="rot-slot-badge {% if is_best %}rot-badge-best{% elif is_worst %}rot-badge-worst{% endif %}">{{ rs.rot_short[slot] }}</span>
+          <span class="rot-label-text">{{ rs.rot_labels[slot] }}</span>
+          {% if is_best %}<span class="rot-flag rot-flag-best">★ Migliore</span>{% endif %}
+          {% if is_worst %}<span class="rot-flag rot-flag-worst">⚠ Critica</span>{% endif %}
+        </td>
+        <td class="stat-good">{{ r.pts_scored }}</td>
+        <td class="stat-bad">{{ r.pts_lost }}</td>
+        <td class="{% if r.saldo > 0 %}stat-good{% elif r.saldo < 0 %}stat-bad{% endif %}">
+          <b>{{ '+' if r.saldo > 0 else '' }}{{ r.saldo }}</b>
+        </td>
+        <td>{{ r.side_out_won }}</td>
+        <td class="muted-cell">{{ r.side_out_tot }}</td>
+        <td class="{% if r.so_pct and r.so_pct >= 55 %}pct-good{% elif r.so_pct and r.so_pct < 45 %}pct-bad{% else %}pct-mid{% endif %}">
+          {{ r.so_pct|string + '%' if r.so_pct is not none else '—' }}
+        </td>
+        <td>{{ r.break_won }}</td>
+        <td class="muted-cell">{{ r.break_tot }}</td>
+        <td class="{% if r.brk_pct and r.brk_pct >= 35 %}pct-good{% elif r.brk_pct and r.brk_pct < 25 %}pct-bad{% else %}pct-mid{% endif %}">
+          {{ r.brk_pct|string + '%' if r.brk_pct is not none else '—' }}
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="formula-legend">
+    <span><b>Side-out%</b> = punti conquistati quando l'avversario serve ÷ totale situazioni in ricezione × 100</span>
+    <span><b>Break%</b> = punti conquistati al nostro servizio ÷ totale situazioni al servizio × 100</span>
+  </div>
+
+  <!-- Grafico a barre saldo per rotazione -->
+  <div class="rot-bars">
+    {% for slot in rs.rot_order %}
+    {% set r = rs.rotations[slot] %}
+    {% set tot = r.pts_scored + r.pts_lost %}
+    {% if tot > 0 %}
+    {% set saldo = r.saldo %}
+    {% set max_saldo = 10 %}
+    {% set bar_w = ([saldo|abs, max_saldo]|min / max_saldo * 100)|int %}
+    <div class="rot-bar-row">
+      <div class="rot-bar-label">{{ rs.rot_short[slot] }}</div>
+      <div class="rot-bar-track">
+        {% if saldo >= 0 %}
+        <div class="rot-bar-pos" style="width:{{ bar_w }}%"></div>
+        {% else %}
+        <div class="rot-bar-neg" style="width:{{ bar_w }}%"></div>
+        {% endif %}
+      </div>
+      <div class="rot-bar-val {% if saldo > 0 %}pct-good{% elif saldo < 0 %}pct-bad{% endif %}">
+        {{ '+' if saldo > 0 else '' }}{{ saldo }}
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- MINUTI GIOCATI -->
+  <h3 class="stat-section-title">Minuti Giocati (stima)</h3>
+  <div class="stats-table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">N°</th><th class="left">Atleta</th><th>Ruolo</th>
+        {% for s in sets %}
+        <th>Set {{ s.number }}</th>
+        {% endfor %}
+        <th>Totale</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pnum, ps in total_stats.items()|sort(attribute='0') %}
+      {% set info = p_by_num.get(pnum|int) %}
+      {% set tot_min = match_minutes.get(pnum|int, 0) %}
+      {% if tot_min > 0 %}
+      <tr>
+        <td><span class="jersey-num">{{ pnum }}</span></td>
+        <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+        <td><span class="role-badge role-{{ info.role if info else 'U' }}">{{ info.role if info else '–' }}</span></td>
+        {% for s in sets %}
+        {% set set_min = s.minutes.get(pnum|int, 0) if s.minutes else 0 %}
+        {% if set_min > 0 %}
+        <td>{{ set_min }}'</td>
+        {% else %}
+        <td class="muted-cell">—</td>
+        {% endif %}
+        {% endfor %}
+        <td><b>{{ tot_min }}'</b></td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="formula-legend" style="font-size:10px;color:var(--text-muted);padding:4px 0">
+    ⚠ Stima basata sui timestamp degli eventi registrati.
+  </p>
+
+  <!-- RICEZIONE -->
+  <h3 class="stat-section-title">Ricezione</h3>
+  <div class="stats-table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">N°</th><th class="left">Atleta</th>
+        <th title="Ricezioni che permettono attacco">R+</th>
+        <th title="Ricezioni che non permettono attacco">R–</th>
+        <th title="Ace subiti">Ace sub.</th>
+        <th title="Totale ricezioni">Tot.</th>
+        <th title="Positività = (R+ + R–) / Tot × 100" class="pct-header">Positività %</th>
+        <th title="Efficienza = (R+ + R– − Ace sub.) / Tot × 100" class="pct-header">Efficienza %</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pnum, s in total_stats.items()|sort(attribute='0') %}
+      {% set info = p_by_num.get(pnum|int) %}
+      <tr>
+        <td><span class="jersey-num">{{ pnum }}</span></td>
+        <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+        <td class="stat-good">{{ s.rec_pos }}</td>
+        <td>{{ s.rec_neg }}</td>
+        <td class="{{ 'stat-bad' if s.rec_err > 0 }}">{{ s.rec_err }}</td>
+        <td class="muted-cell">{{ s.rec_total }}</td>
+        {{ pct_cell(s.rec_positivity, 60) }}
+        {{ pct_cell(s.rec_efficiency, 30) }}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Formula legenda -->
+  <div class="formula-legend">
+    <span><b>Positività</b> = (R+ + R−) ÷ Tot × 100 &nbsp;·&nbsp; R+ e R− sono valori positivi</span>
+    <span><b>Efficienza</b> = (R+ + R− − Ace sub.) ÷ Tot × 100 &nbsp;·&nbsp; solo RE è negativo</span>
+  </div>
+
+  <!-- ATTACCO — HEATMAP ZONE -->
+  <h3 class="stat-section-title">Attacco — Heatmap Zone</h3>
+  {% if attack_zone_stats and attack_zone_stats.total_attacks > 0 %}
+  {% set hm = attack_zone_stats.heatmap %}
+  {% set ze = attack_zone_stats.zone_eff %}
+  {% set max_z = hm.values()|max|default(1) %}
+
+  <div class="setter-analysis">
+    <div class="setter-heatmap-wrap">
+      <div class="setter-heatmap-label">Attacchi per zona ({{ attack_zone_stats.total_attacks }} tot.) — colore = volume, testo = kill% / eff%</div>
+      <svg class="court-heatmap" viewBox="0 0 300 210" xmlns="http://www.w3.org/2000/svg">
+        <!-- Rete -->
+        <line x1="0" y1="105" x2="300" y2="105" stroke="#b6f000" stroke-width="3"/>
+        <text x="150" y="101" text-anchor="middle" font-size="9" fill="#b6f000" font-weight="bold">RETE</text>
+        {% for z,x in [(4,0),(3,100),(2,200)] %}
+          {% set cnt = hm.get(z,0) %}
+          {% set alpha = (cnt / max_z * 0.85)|round(2) if max_z > 0 else 0 %}
+          {% set zdata = ze.get(z,{}) %}
+          {% set kp = zdata.get('kill_pct') %}
+          {% set ep = zdata.get('eff') %}
+          {% set dark = alpha > 0.5 %}
+          <rect x="{{ x+1 }}" y="1" width="98" height="102"
+                fill="{{ cat.color }}" fill-opacity="{{ alpha }}"
+                stroke="#30363d" stroke-width="1" rx="3"/>
+          <text x="{{ x+50 }}" y="28" text-anchor="middle" font-size="22" font-weight="900"
+                fill="{{ '#0d1117' if dark else cat.color }}">{{ cnt }}</text>
+          <text x="{{ x+50 }}" y="46" text-anchor="middle" font-size="10"
+                fill="{{ '#0d1117' if dark else '#8b949e' }}">Zona {{ z }}</text>
+          {% if cnt > 0 %}
+          <text x="{{ x+50 }}" y="63" text-anchor="middle" font-size="9"
+                fill="{{ '#0d1117' if dark else ('#e6ae2e' if kp and kp >= 20 else '#f85149') }}">
+            Kill {{ kp|int if kp is not none else '–' }}%
+          </text>
+          <text x="{{ x+50 }}" y="79" text-anchor="middle" font-size="9"
+                fill="{{ '#0d1117' if dark else ('#e6ae2e' if ep and ep >= 0 else '#f85149') }}">
+            Eff {{ ep|int if ep is not none else '–' }}%
+          </text>
+          <text x="{{ x+50 }}" y="95" text-anchor="middle" font-size="8"
+                fill="{{ '#0d1117' if dark else '#8b949e' }}">
+            {{ (cnt / attack_zone_stats.total_attacks * 100)|round|int }}% tot
+          </text>
+          {% endif %}
+        {% endfor %}
+        {% for z,x in [(5,0),(6,100),(1,200)] %}
+          {% set cnt = hm.get(z,0) %}
+          {% set alpha = (cnt / max_z * 0.85)|round(2) if max_z > 0 else 0 %}
+          {% set zdata = ze.get(z,{}) %}
+          {% set kp = zdata.get('kill_pct') %}
+          {% set ep = zdata.get('eff') %}
+          {% set dark = alpha > 0.5 %}
+          <rect x="{{ x+1 }}" y="107" width="98" height="102"
+                fill="{{ cat.color }}" fill-opacity="{{ alpha }}"
+                stroke="#30363d" stroke-width="1" rx="3"/>
+          <text x="{{ x+50 }}" y="134" text-anchor="middle" font-size="22" font-weight="900"
+                fill="{{ '#0d1117' if dark else cat.color }}">{{ cnt }}</text>
+          <text x="{{ x+50 }}" y="152" text-anchor="middle" font-size="10"
+                fill="{{ '#0d1117' if dark else '#8b949e' }}">Zona {{ z }}</text>
+          {% if cnt > 0 %}
+          <text x="{{ x+50 }}" y="169" text-anchor="middle" font-size="9"
+                fill="{{ '#0d1117' if dark else ('#e6ae2e' if kp and kp >= 20 else '#f85149') }}">
+            Kill {{ kp|int if kp is not none else '–' }}%
+          </text>
+          <text x="{{ x+50 }}" y="185" text-anchor="middle" font-size="9"
+                fill="{{ '#0d1117' if dark else ('#e6ae2e' if ep and ep >= 0 else '#f85149') }}">
+            Eff {{ ep|int if ep is not none else '–' }}%
+          </text>
+          <text x="{{ x+50 }}" y="201" text-anchor="middle" font-size="8"
+                fill="{{ '#0d1117' if dark else '#8b949e' }}">
+            {{ (cnt / attack_zone_stats.total_attacks * 100)|round|int }}% tot
+          </text>
+          {% endif %}
+        {% endfor %}
+        <!-- Divisori verticali -->
+        <line x1="100" y1="0" x2="100" y2="210" stroke="#30363d" stroke-width="1"/>
+        <line x1="200" y1="0" x2="200" y2="210" stroke="#30363d" stroke-width="1"/>
+        <!-- Bordo -->
+        <rect x="0" y="0" width="300" height="210" fill="none" stroke="#30363d" stroke-width="2" rx="4"/>
+        <text x="298" y="55"  text-anchor="end" font-size="8" fill="#8b949e">Davanti</text>
+        <text x="298" y="160" text-anchor="end" font-size="8" fill="#8b949e">Dietro</text>
+      </svg>
+      <div class="heatmap-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:{{ cat.color }}; opacity:0.85"></span> Alto volume</span>
+        <span class="legend-item"><span class="legend-dot" style="background:{{ cat.color }}; opacity:0.2"></span> Basso volume</span>
+        <span class="legend-item" style="color:#e6ae2e">Kill ≥ 20%</span>
+        <span class="legend-item" style="color:#f85149">Kill &lt; 20%</span>
+      </div>
+    </div>
+
+    <!-- Distribuzione per zona: chi attacca da dove -->
+    <div class="setter-dist-wrap">
+      <div class="setter-heatmap-label">Distribuzione attaccanti per zona</div>
+      {% set has_dist = attack_zone_stats.distribution.values()|map('length')|sum > 0 %}
+      {% if has_dist %}
+      <div class="zone-distribution-grid">
+        {% for z in [4,3,2,5,6,1] %}
+          {% set zd = attack_zone_stats.distribution.get(z,{}) %}
+          {% if zd %}
+          <div class="zone-card">
+            <div class="zone-card-header" style="background:{{ cat.color }}">Zona {{ z }} — {{ zone_names.get(z,'') }}</div>
+            <table class="zone-card-table">
+              <thead><tr><th>N°</th><th>Tot</th><th>Kill</th><th>Err</th><th>Eff%</th></tr></thead>
+              <tbody>
+                {% for pnum, d in zd.items()|sort(attribute='1.total', reverse=True) %}
+                {% set info = p_by_num.get(pnum|int) %}
+                <tr>
+                  <td><span class="jersey-num">{{ pnum }}</span></td>
+                  <td>{{ d.total }}</td>
+                  <td class="{{ 'stat-good' if d.kill > 0 }}">{{ d.kill }}</td>
+                  <td class="{{ 'stat-bad' if d.err > 0 }}">{{ d.err }}</td>
+                  <td>{% if d.eff is not none %}{{ d.eff }}%{% else %}—{% endif %}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% else %}
+  <p class="empty-msg">Nessun attacco registrato con formazione tracciabile.</p>
+  {% endif %}
+
+  <!-- ATTACCO — TABELLA DETTAGLIO -->
+  <h3 class="stat-section-title">Attacco</h3>
+  <div class="stats-table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">N°</th><th class="left">Atleta</th>
+        <th title="Kill – punto diretto">Kill</th>
+        <th title="Attacco in campo, senza punto">Cont.</th>
+        <th title="Errore attacco">Err.</th>
+        <th title="Attacco murato">Mur.</th>
+        <th title="Totale attacchi">Tot.</th>
+        <th title="Positività = (Kill + Cont.) / Tot × 100" class="pct-header">Positività %</th>
+        <th title="Efficienza = (Kill + Cont. − Err. − Mur.) / Tot × 100" class="pct-header">Efficienza %</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pnum, s in total_stats.items()|sort(attribute='0') %}
+      {% set info = p_by_num.get(pnum|int) %}
+      <tr>
+        <td><span class="jersey-num">{{ pnum }}</span></td>
+        <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+        <td class="{{ 'stat-good' if s.attack_kill > 0 }}">{{ s.attack_kill }}</td>
+        <td>{{ s.attack_cont }}</td>
+        <td class="{{ 'stat-bad' if s.attack_err > 0 }}">{{ s.attack_err }}</td>
+        <td class="{{ 'stat-bad' if s.attack_blk > 0 }}">{{ s.attack_blk }}</td>
+        <td class="muted-cell">{{ s.att_total }}</td>
+        {{ pct_cell(s.att_positivity, 50) }}
+        {{ pct_cell(s.att_efficiency, 25) }}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="formula-legend">
+    <span><b>Positività</b> = (Kill + Cont.) ÷ Tot × 100 &nbsp;·&nbsp; A e AN sono valori positivi</span>
+    <span><b>Efficienza</b> = (Kill + Cont. − Err. − Mur.) ÷ Tot × 100 &nbsp;·&nbsp; AE e AB sono negativi</span>
+  </div>
+
+  <!-- SERVIZIO + MURO + PUNTI -->
+  <h3 class="stat-section-title">Altri indicatori</h3>
+  <div class="stats-table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">N°</th><th class="left">Atleta</th><th>R.</th>
+        <th>Ace</th><th>Err.S</th>
+        <th>Muro</th><th>Err.M</th>
+        <th>Difesa</th><th>Err.D</th>
+        <th>+Pt</th><th>–Pt</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pnum, s in total_stats.items()|sort(attribute='0') %}
+      {% set info = p_by_num.get(pnum|int) %}
+      <tr>
+        <td><span class="jersey-num">{{ pnum }}</span></td>
+        <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+        <td><span class="role-badge role-{{ info.role if info else 'U' }}">{{ info.role if info else '–' }}</span></td>
+        <td class="{{ 'stat-good' if s.serve_ace }}">{{ s.serve_ace }}</td>
+        <td class="{{ 'stat-bad' if s.serve_err }}">{{ s.serve_err }}</td>
+        <td class="{{ 'stat-good' if s.block_pt }}">{{ s.block_pt }}</td>
+        <td class="{{ 'stat-bad' if s.block_err }}">{{ s.block_err }}</td>
+        <td>{{ s.def_pos }}</td>
+        <td class="{{ 'stat-bad' if s.def_err }}">{{ s.def_err }}</td>
+        <td class="stat-pts-good"><b>{{ s.pts_scored }}</b></td>
+        <td class="stat-pts-bad"><b>{{ s.pts_lost }}</b></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- DETTAGLIO PER SET -->
+{% for s in sets %}
+<section class="card">
+  <div class="card-header">
+    <span class="card-icon">{% if s.state.winner=='us' %}✓{% else %}✗{% endif %}</span>
+    <h2>Set {{ s.number }} <span class="set-result-score">{{ s.state.score_us }} – {{ s.state.score_them }}</span></h2>
+    <span class="badge {% if s.state.winner=='us' %}badge-won{% else %}badge-lost{% endif %}">
+      {% if s.state.winner=='us' %}VINTO{% elif s.state.winner %}PERSO{% else %}IN CORSO{% endif %}
+    </span>
+    <a href="{{ url_for('set_view', cat_id=cat.id, match_id=match.id, set_num=s.number) }}" class="btn btn-sm">▶ Vai</a>
+  </div>
+
+  {% if s.player_stats %}
+  <!-- Ricezione set -->
+  <p class="stat-subsection">Ricezione</p>
+  <table class="data-table stats-set">
+    <thead>
+      <tr><th class="left">N°</th><th class="left">Atleta</th>
+          <th>R+</th><th>R–</th><th>Ace sub.</th><th>Tot.</th>
+          <th class="pct-header">Pos%</th><th class="pct-header">Eff%</th></tr>
+    </thead>
+    <tbody>
+      {% for pnum, ps in s.player_stats.items()|sort(attribute='0') %}
+      {% set info = p_by_num.get(pnum|int) %}
+      <tr>
+        <td><span class="jersey-num">{{ pnum }}</span></td>
+        <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+        <td class="{{ 'stat-good' if ps.rec_pos }}">{{ ps.rec_pos }}</td>
+        <td>{{ ps.rec_neg }}</td>
+        <td class="{{ 'stat-bad' if ps.rec_err }}">{{ ps.rec_err }}</td>
+        <td class="muted-cell">{{ ps.rec_total }}</td>
+        {{ pct_cell(ps.rec_positivity, 60) }}
+        {{ pct_cell(ps.rec_efficiency, 30) }}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Attacco set -->
+  <p class="stat-subsection">Attacco</p>
+  <table class="data-table stats-set">
+    <thead>
+      <tr><th class="left">N°</th><th class="left">Atleta</th>
+          <th>Kill</th><th>Cont.</th><th>Err.</th><th>Mur.</th><th>Tot.</th>
+          <th class="pct-header">Pos%</th><th class="pct-header">Eff%</th></tr>
+    </thead>
+    <tbody>
+      {% for pnum, ps in s.player_stats.items()|sort(attribute='0') %}
+      {% set info = p_by_num.get(pnum|int) %}
+      <tr>
+        <td><span class="jersey-num">{{ pnum }}</span></td>
+        <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+        <td class="{{ 'stat-good' if ps.attack_kill }}">{{ ps.attack_kill }}</td>
+        <td>{{ ps.attack_cont }}</td>
+        <td class="{{ 'stat-bad' if ps.attack_err }}">{{ ps.attack_err }}</td>
+        <td class="{{ 'stat-bad' if ps.attack_blk }}">{{ ps.attack_blk }}</td>
+        <td class="muted-cell">{{ ps.att_total }}</td>
+        {{ pct_cell(ps.att_positivity, 50) }}
+        {{ pct_cell(ps.att_efficiency, 25) }}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

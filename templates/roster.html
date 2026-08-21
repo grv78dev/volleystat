@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}VolleyStat — Rosa{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Rosa Squadra</h1>
+  <span class="tag">{{ players|length }} atleti</span>
+</div>
+
+{% if request.args.msg %}
+<div class="import-notice notice-{{ request.args.msg_type or 'ok' }}">
+  {{ request.args.msg }}
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <!-- Form aggiungi giocatore -->
+  <section class="card">
+    <div class="card-header"><span class="card-icon">➕</span><h2>Aggiungi Atleta</h2></div>
+    <form method="POST" class="form-grid">
+      <input type="hidden" name="action" value="add">
+      <div class="form-group">
+        <label>N° Maglia *</label>
+        <input type="number" name="number" min="1" max="99" required placeholder="10" class="input">
+      </div>
+      <div class="form-group">
+        <label>Nome Cognome *</label>
+        <input type="text" name="name" required placeholder="Mario Rossi" class="input">
+      </div>
+      <div class="form-group">
+        <label>Ruolo</label>
+        <select name="role" class="input">
+          <option value="S">S — Palleggiatore</option>
+          <option value="O">O — Opposto</option>
+          <option value="P">P — Posto 4 (Schiacciatore)</option>
+          <option value="C">C — Centrale</option>
+          <option value="L">L — Libero</option>
+          <option value="U">U — Universale</option>
+        </select>
+      </div>
+      <div class="form-group form-group-full">
+        <button type="submit" class="btn btn-accent">Aggiungi</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Tabella giocatori -->
+  <section class="card">
+    <div class="card-header"><span class="card-icon">👥</span><h2>Elenco Atleti</h2></div>
+    {% if players %}
+    <table class="data-table">
+      <thead>
+        <tr><th>N°</th><th>Nome</th><th>Ruolo</th><th>Azioni</th></tr>
+      </thead>
+      <tbody>
+        {% for p in players %}
+        <tr>
+          <td><span class="jersey-num">{{ p.number }}</span></td>
+          <td class="name-cell">{{ p.name }}</td>
+          <td><span class="role-badge role-{{ p.role }}">{{ p.role }}</span></td>
+          <td>
+            <a href="{{ url_for('report_giocatore', cat_id=cat.id, player_num=p.number) }}"
+               class="btn btn-sm" target="_blank" title="Scheda PDF giocatore">📄</a>
+            <button class="btn btn-sm btn-edit"
+                    onclick="openEdit({{ p.id }}, {{ p.number }}, '{{ p.name|e }}', '{{ p.role }}')">✏</button>
+            <form method="POST" style="display:inline"
+                  onsubmit="return confirm('Eliminare {{ p.name|e }}?')">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="id"     value="{{ p.id }}">
+              <button type="submit" class="btn btn-sm btn-danger">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty-msg">Nessun atleta nella rosa.<br>Inizia aggiungendo i giocatori.</p>
+    {% endif %}
+  </section>
+</div>
+
+<!-- Trend Prestazioni -->
+{% if players %}
+<section class="card trend-section">
+  <div class="card-header">
+    <span class="card-icon">📈</span>
+    <h2>Trend Prestazioni</h2>
+    <span class="card-subtitle">Indice netto = (punti segnati − punti persi) / set giocati</span>
+  </div>
+
+  <div class="trend-legend">
+    <span class="trend-pill"><span class="tup">↑</span> In crescita</span>
+    <span class="trend-pill"><span class="tdown">↓</span> In calo</span>
+    <span class="trend-pill"><span class="tstable">→</span> Stabile</span>
+    <span class="trend-pill cons-tag cons-high">σ basso = costante</span>
+    <span class="trend-pill cons-tag cons-med">σ medio</span>
+    <span class="trend-pill cons-tag cons-low">σ alto = discontinuo</span>
+  </div>
+
+  <div class="trend-table-wrap">
+  <table class="data-table trend-table">
+    <thead>
+      <tr>
+        <th>N°</th>
+        <th>Nome</th>
+        <th>Ruolo</th>
+        <th title="Indice netto nelle ultime 3 partite (più vecchio → più recente)">Trend 3P <small>▸ ultime 3 partite</small></th>
+        <th title="Deviazione standard dell'indice nelle ultime 5 partite. Più basso = più costante.">Consistenza <small>σ ultime 5P</small></th>
+        <th title="Rendimento medio nelle partite con ≤7 giorni dalla precedente o successiva. Mostra se il giocatore regge con poco riposo.">Ravvicinate <small>≤7gg</small></th>
+        <th title="Punti segnati per set giocato — chi rende di più in campo indipendentemente dal tempo di presenza.">Punti/Set</th>
+        <th>Partite</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in players %}
+      {% set tr = trends.get(p.number) %}
+      <tr>
+        <td><span class="jersey-num">{{ p.number }}</span></td>
+        <td class="name-cell">{{ p.name }}</td>
+        <td><span class="role-badge role-{{ p.role }}">{{ p.role }}</span></td>
+
+        {% if tr %}
+        {# ── Trend ultime 3 #}
+        <td class="trend-cell">
+          {% if tr.trend_direction == 'up' %}
+            <span class="trend-arrow tup">↑</span>
+          {% elif tr.trend_direction == 'down' %}
+            <span class="trend-arrow tdown">↓</span>
+          {% elif tr.trend_direction == 'stable' %}
+            <span class="trend-arrow tstable">→</span>
+          {% else %}
+            <span class="trend-arrow">—</span>
+          {% endif %}
+          <span class="trend-vals">
+            {% for v in tr.trend_values %}
+              <span class="tv {% if v > 0 %}tv-pos{% elif v < 0 %}tv-neg{% else %}tv-zero{% endif %}">{{ v }}</span>
+              {% if not loop.last %}<span class="tv-sep">›</span>{% endif %}
+            {% endfor %}
+          </span>
+        </td>
+
+        {# ── Consistenza σ #}
+        <td class="cons-cell">
+          {% if tr.consistency is not none %}
+            <span class="cons-badge
+              {% if tr.consistency < 1 %}cons-high
+              {% elif tr.consistency < 2.5 %}cons-med
+              {% else %}cons-low{% endif %}">
+              σ {{ tr.consistency }}
+            </span>
+          {% else %}<span class="nd">—</span>{% endif %}
+        </td>
+
+        {# ── Partite ravvicinate #}
+        <td class="close-cell">
+          {% if tr.close_avg is not none %}
+            <span class="close-val {% if tr.close_avg >= (tr.normal_avg or 0) %}cv-ok{% else %}cv-warn{% endif %}">
+              {{ tr.close_avg }}
+            </span>
+            <small class="close-n">({{ tr.close_n }}P)</small>
+            {% if tr.normal_avg is not none %}
+              <small class="close-vs"> vs {{ tr.normal_avg }}</small>
+            {% endif %}
+          {% else %}<span class="nd">—</span>{% endif %}
+        </td>
+
+        {# ── Punti/Set #}
+        <td class="pps-cell">
+          {% if tr.pts_per_set is not none %}
+            <span class="pps-val {% if tr.pts_per_set >= 2 %}pps-high{% elif tr.pts_per_set >= 1 %}pps-med{% else %}pps-low{% endif %}">
+              {{ tr.pts_per_set }}
+            </span>
+          {% else %}<span class="nd">—</span>{% endif %}
+        </td>
+
+        <td class="matches-cell">
+          <span class="matches-badge">{{ tr.matches_played }}P / {{ tr.total_sets }}S</span>
+        </td>
+
+        {% else %}
+        <td colspan="5" class="nd" style="font-size:0.8rem;text-align:center">nessuna partita</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- Import da CSV -->
+<section class="card csv-import-card">
+  <div class="card-header"><span class="card-icon">📂</span><h2>Importa Rosa da CSV</h2></div>
+  <div class="csv-import-body">
+
+    <!-- Istruzioni -->
+    <div class="csv-instructions">
+      <p class="csv-instr-title">Come preparare il file CSV</p>
+      <ol class="csv-instr-list">
+        <li>Crea un file <strong>.csv</strong> (Excel: <em>Salva con nome → CSV UTF-8</em>).</li>
+        <li>La <strong>prima riga</strong> deve contenere esattamente le intestazioni:<br>
+          <code>numero,nome,ruolo</code>
+        </li>
+        <li>Ogni riga successiva rappresenta un atleta.</li>
+        <li>I <strong>numeri di maglia già presenti</strong> nella rosa vengono ignorati.</li>
+      </ol>
+
+      <p class="csv-instr-title" style="margin-top:14px">Codici ruolo</p>
+      <div class="csv-roles-grid">
+        <span class="role-badge role-S">S</span><span>Palleggiatore</span>
+        <span class="role-badge role-O">O</span><span>Opposto</span>
+        <span class="role-badge role-P">P</span><span>Posto 4 — Schiacciatore</span>
+        <span class="role-badge role-C">C</span><span>Centrale</span>
+        <span class="role-badge role-L">L</span><span>Libero</span>
+        <span class="role-badge role-U">U</span><span>Universale (default se omesso)</span>
+      </div>
+
+      <p class="csv-instr-title" style="margin-top:14px">Esempio file</p>
+      <pre class="csv-example">numero,nome,ruolo
+10,Mario Rossi,S
+5,Luca Bianchi,P
+3,Andrea Verdi,C
+1,Giorgio Neri,L
+7,Francesco Gialli,O
+12,Matteo Blu,U</pre>
+    </div>
+
+    <!-- Form upload -->
+    <div class="csv-upload-area">
+      <form method="POST"
+            action="{{ url_for('roster_import_csv', cat_id=cat.id) }}"
+            enctype="multipart/form-data"
+            class="csv-upload-form">
+        <label class="csv-file-label" for="csvFileInput">
+          <span class="csv-file-icon">📁</span>
+          <span id="csvFileName">Scegli file .csv…</span>
+        </label>
+        <input type="file" id="csvFileInput" name="csvfile"
+               accept=".csv,text/csv" required
+               onchange="document.getElementById('csvFileName').textContent = this.files[0]?.name || 'Scegli file .csv…'">
+        <button type="submit" class="btn btn-accent btn-lg" style="width:100%;margin-top:12px">
+          Importa Atleti
+        </button>
+      </form>
+      <p class="csv-note">Il file non verrà modificato. I dati verranno aggiunti alla rosa esistente.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- Modal modifica -->
+<div id="editModal" class="modal" style="display:none">
+  <div class="modal-box">
+    <h3>Modifica Atleta</h3>
+    <form method="POST" class="form-grid">
+      <input type="hidden" name="action" value="edit">
+      <input type="hidden" name="id" id="editId">
+      <div class="form-group">
+        <label>N° Maglia</label>
+        <input type="number" name="number" id="editNumber" min="1" max="99" required class="input">
+      </div>
+      <div class="form-group">
+        <label>Nome Cognome</label>
+        <input type="text" name="name" id="editName" required class="input">
+      </div>
+      <div class="form-group">
+        <label>Ruolo</label>
+        <select name="role" id="editRole" class="input">
+          <option value="S">S — Palleggiatore</option>
+          <option value="O">O — Opposto</option>
+          <option value="P">P — Posto 4</option>
+          <option value="C">C — Centrale</option>
+          <option value="L">L — Libero</option>
+          <option value="U">U — Universale</option>
+        </select>
+      </div>
+      <div class="form-group form-group-full btn-row">
+        <button type="submit" class="btn btn-accent">Salva</button>
+        <button type="button" class="btn" onclick="closeEdit()">Annulla</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function openEdit(id, num, name, role) {
+  document.getElementById('editId').value     = id;
+  document.getElementById('editNumber').value = num;
+  document.getElementById('editName').value   = name;
+  document.getElementById('editRole').value   = role;
+  document.getElementById('editModal').style.display = 'flex';
+}
+function closeEdit() {
+  document.getElementById('editModal').style.display = 'none';
+}
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeEdit();
+});
+</script>
+{% endblock %}

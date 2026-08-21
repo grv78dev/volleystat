@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}Esporta per Analisi AI — vs {{ match.opponent }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('stats_view', cat_id=cat.id, match_id=match.id) }}" class="back-link">← Statistiche</a>
+    <h1>Esporta per Analisi AI</h1>
+  </div>
+  <div class="header-meta">
+    <span class="tag">vs {{ match.opponent }}</span>
+    <span class="tag">{{ match.date[:10] }}</span>
+  </div>
+</div>
+
+<!-- Istruzioni -->
+<section class="card ai-instructions-card">
+  <div class="card-header">
+    <span class="card-icon">[AI] </span>
+    <h2>Come usare questa funzione</h2>
+  </div>
+  <div class="ai-steps">
+    <div class="ai-step">
+      <div class="step-num">1</div>
+      <div class="step-text">
+        <b>Copia il testo</b> qui sotto con il pulsante apposito —
+        contiene tutti i dati della partita in formato anonimo (solo numeri di maglia).
+      </div>
+    </div>
+    <div class="ai-step">
+      <div class="step-num">2</div>
+      <div class="step-text">
+        <b>Apri Claude</b> su
+        <a href="https://claude.ai" target="_blank" class="ai-link">claude.ai</a>
+        in una nuova scheda del browser.
+      </div>
+    </div>
+    <div class="ai-step">
+      <div class="step-num">3</div>
+      <div class="step-text">
+        <b>Incolla il testo</b> nella chat e invia.
+        Claude analizzerà la partita e ti fornirà osservazioni tattiche dettagliate.
+      </div>
+    </div>
+    <div class="ai-step">
+      <div class="step-num">4</div>
+      <div class="step-text">
+        <b>Fai domande</b> — puoi chiedere approfondimenti specifici,
+        come "approfondisci la ricezione del #15" o "cosa devo migliorare nel servizio?".
+      </div>
+    </div>
+  </div>
+  <div class="ai-privacy-note">
+    🔒 I dati sono completamente anonimi: nessun nome o cognome viene esportato,
+    solo numeri di maglia. Nessun dato personale viene inviato.
+  </div>
+</section>
+
+<!-- Testo da copiare -->
+<section class="card">
+  <div class="card-header">
+    <span class="card-icon">[copia] </span>
+    <h2>Testo da copiare</h2>
+    <div style="display:flex;gap:8px;margin-left:auto">
+      <button class="btn btn-accent" onclick="copyAll()" id="copyBtn">
+        Copia tutto
+      </button>
+      <button class="btn" onclick="selectAll()">
+        Seleziona tutto
+      </button>
+    </div>
+  </div>
+
+  <div class="ai-export-box" id="exportBox">
+    <pre id="exportText">{{ export_text }}</pre>
+  </div>
+
+  <div class="copy-feedback" id="copyFeedback" style="display:none">
+    ✅ Testo copiato! Ora vai su claude.ai e incollalo nella chat.
+  </div>
+</section>
+
+<!-- Anteprima struttura -->
+<section class="card">
+  <div class="card-header">
+    <span class="card-icon">[stats] </span>
+    <h2>Cosa è incluso nell'export</h2>
+  </div>
+  <div class="export-summary-grid">
+    <div class="export-item">
+      <span class="ei-icon">📅</span>
+      <span>Info partita (data, avversario, regolamento, risultato)</span>
+    </div>
+    <div class="export-item">
+      <span class="ei-icon">[pallavolo]</span>
+      <span>Dettaglio set per set: formazione, sostituzioni, timeout, stats per numero</span>
+    </div>
+    <div class="export-item">
+      <span class="ei-icon">📥</span>
+      <span>Ricezione con R+, R−, Ace subiti, Positività%, Efficienza%</span>
+    </div>
+    <div class="export-item">
+      <span class="ei-icon">⚡</span>
+      <span>Attacco con Kill, In campo, Errori, Murati, Positività%, Efficienza%</span>
+    </div>
+    <div class="export-item">
+      <span class="ei-icon">⏱</span>
+      <span>Minuti giocati per numero di maglia</span>
+    </div>
+    <div class="export-item">
+      <span class="ei-icon">🔒</span>
+      <span>Solo numeri di maglia — zero dati personali</span>
+    </div>
+  </div>
+
+  <div style="margin-top:16px">
+    <h3 style="font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;
+               letter-spacing:1px;margin-bottom:10px">
+      Struttura dell'analisi che riceverai
+    </h3>
+    <div class="analysis-sections">
+      <div class="analysis-section">
+        <div class="as-num">1</div>
+        <div>
+          <b>Analisi set per set</b> — per ogni set: esito, punto critico,
+          stato della ricezione, efficienza in attacco, servizio.
+        </div>
+      </div>
+      <div class="analysis-section">
+        <div class="as-num">2</div>
+        <div>
+          <b>Confronto tra set</b> — cosa è migliorato o peggiorato,
+          l'effetto delle sostituzioni, il set migliore e il peggiore.
+        </div>
+      </div>
+      <div class="analysis-section">
+        <div class="as-num">3</div>
+        <div>
+          <b>Giocatori per reparto</b> — migliore e peggiore in ricezione,
+          attacco, servizio e muro con valori espliciti.
+        </div>
+      </div>
+      <div class="analysis-section">
+        <div class="as-num">4</div>
+        <div>
+          <b>5 suggerimenti tattici</b> — problema specifico dai dati +
+          soluzione pratica per allenamento, più giudizio complessivo.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyAll() {
+  const text = document.getElementById('exportText').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    const fb  = document.getElementById('copyFeedback');
+    btn.textContent = '✅ Copiato!';
+    btn.style.background = 'var(--success)';
+    btn.style.color = '#0d1117';
+    fb.style.display = 'block';
+    setTimeout(() => {
+      btn.textContent = 'Copia tutto';
+      btn.style.background = '';
+      btn.style.color = '';
+    }, 3000);
+  }).catch(() => {
+    // Fallback per browser senza clipboard API
+    selectAll();
+    document.execCommand('copy');
+    alert('Selezionato! Premi Ctrl+C per copiare.');
+  });
+}
+
+function selectAll() {
+  const pre = document.getElementById('exportText');
+  const range = document.createRange();
+  range.selectNodeContents(pre);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+</script>
+
+<style>
+.ai-instructions-card { border-top: 4px solid var(--accent); }
+.ai-steps { display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
+.ai-step { display:flex; align-items:flex-start; gap:14px; }
+.step-num {
+  display:flex; align-items:center; justify-content:center;
+  width:32px; height:32px; border-radius:50%;
+  background:var(--accent); color:#0d1117;
+  font-weight:900; font-size:15px; flex-shrink:0;
+}
+.step-text { font-size:14px; line-height:1.6; padding-top:4px; }
+.ai-link { color:var(--accent); font-weight:700; }
+.ai-privacy-note {
+  background:rgba(63,185,80,.08);
+  border:1px solid rgba(63,185,80,.3);
+  border-radius:6px;
+  padding:10px 14px;
+  font-size:12px;
+  color:var(--text-muted);
+}
+
+.ai-export-box {
+  background:#000;
+  border:1px solid var(--surface3);
+  border-radius:8px;
+  padding:16px;
+  max-height:500px;
+  overflow-y:auto;
+  margin-bottom:10px;
+}
+.ai-export-box pre {
+  font-family:'Ubuntu Mono','Courier New',monospace;
+  font-size:12px;
+  line-height:1.6;
+  color:#d4d4d4;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+.copy-feedback {
+  background:rgba(63,185,80,.12);
+  border:1px solid var(--success);
+  border-radius:6px;
+  padding:10px 14px;
+  font-size:13px;
+  font-weight:600;
+  color:var(--success);
+  margin-top:8px;
+}
+
+.analysis-sections { display:flex; flex-direction:column; gap:8px; }
+.analysis-section {
+  display:flex; align-items:flex-start; gap:12px;
+  background:var(--surface2); border-radius:6px; padding:10px 14px;
+  font-size:13px; line-height:1.5;
+}
+.as-num {
+  display:flex; align-items:center; justify-content:center;
+  width:26px; height:26px; border-radius:50%; flex-shrink:0;
+  background: linear-gradient(135deg,#6366f1,#8b5cf6);
+  color:#fff; font-weight:900; font-size:13px;
+}
+.export-item {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  background:var(--surface2);
+  border-radius:6px;
+  padding:10px 14px;
+  font-size:13px;
+}
+.ei-icon { font-size:18px; flex-shrink:0; }
+</style>
+{% endblock %}

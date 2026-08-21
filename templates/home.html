@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}SETPOINT{% if club.name %} — {{ club.name }}{% endif %}{% endblock %}
+
+{% block content %}
+
+<!-- Hero sodalizio -->
+<div class="club-hero">
+  <div class="club-hero-left">
+    <!-- Logo pallone decorativo -->
+    <svg class="club-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="22" cy="22" r="20" stroke="var(--border)" stroke-width="1.5"/>
+      <circle cx="22" cy="22" r="20" stroke="var(--accent)" stroke-width="1.5"
+              stroke-dasharray="125" stroke-dashoffset="31" opacity=".6"/>
+      <path d="M22 2 C28 10 28 34 22 42" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M22 2 C16 10 16 34 22 42" stroke="var(--text-muted)" stroke-width="1" opacity=".5"/>
+      <path d="M2 18 C10 15 34 15 42 18" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M2 26 C10 29 34 29 42 26" stroke="var(--text-muted)" stroke-width="1" opacity=".5"/>
+    </svg>
+    <div>
+      <h1 class="club-name">{{ club.name or 'Il Tuo Sodalizio' }}</h1>
+      <div class="club-season">
+        {% if club.season %}Stagione {{ club.season }}{% else %}Configura il sodalizio{% endif %}
+      </div>
+    </div>
+  </div>
+  <button class="btn" onclick="document.getElementById('clubModal').style.display='flex'">
+    Impostazioni
+  </button>
+</div>
+
+<!-- Backup -->
+<div class="section-header" style="margin-top:0;padding-top:0;border-top:none">
+  <h2 style="font-size:.85rem;color:var(--text-muted);font-weight:500;letter-spacing:.04em">
+    Backup dati
+  </h2>
+  <div style="display:flex;gap:.5rem">
+    <a href="/esporta-backup" class="btn" style="font-size:.82rem;padding:.3rem .8rem">
+      &#8595; Esporta
+    </a>
+    <button class="btn" style="font-size:.82rem;padding:.3rem .8rem"
+            onclick="document.getElementById('importModal').style.display='flex'">
+      &#8593; Importa
+    </button>
+  </div>
+</div>
+
+<!-- Sezione categorie -->
+<div class="section-header">
+  <h2>Categorie</h2>
+  <button class="btn btn-accent"
+          onclick="document.getElementById('addCatModal').style.display='flex'">
+    + Nuova Categoria
+  </button>
+</div>
+
+{% if cats %}
+<div class="cats-grid">
+  {% for c in cats %}
+  <div class="cat-card" style="--cat-color:{{ c.color }}">
+    <div class="cat-card-top">
+      <div class="cat-badge" style="background:{{ c.color }}">{{ c.short }}</div>
+      <form method="POST" style="display:inline"
+            onsubmit="return confirm('Eliminare {{ c.name|e }} e tutti i suoi dati?')">
+        <input type="hidden" name="action" value="delete_cat">
+        <input type="hidden" name="cat_id" value="{{ c.id }}">
+        <button type="submit" class="btn-icon-del" title="Elimina categoria">&#10005;</button>
+      </form>
+    </div>
+    <div class="cat-name">{{ c.name }}</div>
+    {% if c.season %}<div class="cat-season">Stagione {{ c.season }}</div>{% endif %}
+    <div class="cat-counters">
+      <div class="cat-counter">
+        <span class="cc-val">{{ c.n_players }}</span>
+        <span class="cc-lbl">Atleti</span>
+      </div>
+      <div class="cat-counter">
+        <span class="cc-val">{{ c.n_completed }}</span>
+        <span class="cc-lbl">Partite</span>
+      </div>
+      {% if c.n_ongoing > 0 %}
+      <div class="cat-counter cc-live">
+        <span class="cc-val">{{ c.n_ongoing }}</span>
+        <span class="cc-lbl">Live</span>
+      </div>
+      {% endif %}
+      {% if c.n_scheduled > 0 %}
+      <div class="cat-counter">
+        <span class="cc-val">{{ c.n_scheduled }}</span>
+        <span class="cc-lbl">Prog.</span>
+      </div>
+      {% endif %}
+    </div>
+    <a href="{{ url_for('index', cat_id=c.id) }}"
+       class="cat-enter-btn" style="background:{{ c.color }}">
+      Entra
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-hero">
+  <div class="empty-icon">
+    <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="28" cy="28" r="24" stroke="currentColor" stroke-width="2"/>
+      <path d="M28 4 C36 14 36 42 28 52" stroke="currentColor" stroke-width="2"/>
+      <path d="M28 4 C20 14 20 42 28 52" stroke="currentColor" stroke-width="1.5" opacity=".5"/>
+      <path d="M4 22 C14 18 42 18 52 22" stroke="currentColor" stroke-width="2"/>
+      <path d="M4 34 C14 38 42 38 52 34" stroke="currentColor" stroke-width="1.5" opacity=".5"/>
+    </svg>
+  </div>
+  <p>Nessuna categoria ancora.<br>Crea la prima per iniziare a raccogliere i dati.</p>
+  <button class="btn btn-accent btn-lg"
+          onclick="document.getElementById('addCatModal').style.display='flex'">
+    + Aggiungi prima categoria
+  </button>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Modal impostazioni club -->
+<div id="clubModal" class="modal" style="display:none">
+  <div class="modal-box">
+    <h3>Impostazioni Sodalizio</h3>
+    <form method="POST" class="form-grid">
+      <input type="hidden" name="action" value="save_club">
+      <div class="form-group form-group-full">
+        <label>Nome Sodalizio</label>
+        <input type="text" name="name" class="input" value="{{ club.name }}"
+               placeholder="A.S.D. Volley Example">
+      </div>
+      <div class="form-group form-group-full">
+        <label>Stagione</label>
+        <input type="text" name="season" class="input" value="{{ club.season }}"
+               placeholder="2024/25">
+      </div>
+      <div class="form-group form-group-full btn-row">
+        <button type="submit" class="btn btn-accent">Salva</button>
+        <button type="button" class="btn"
+                onclick="document.getElementById('clubModal').style.display='none'">
+          Annulla
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal nuova categoria -->
+<div id="addCatModal" class="modal" style="display:none">
+  <div class="modal-box">
+    <h3>+ Nuova Categoria</h3>
+    <form method="POST" class="form-grid">
+      <input type="hidden" name="action" value="add_cat">
+      <div class="form-group form-group-full">
+        <label>Nome Categoria</label>
+        <input type="text" name="cat_name" class="input" required
+               placeholder="Under 14 Maschile" id="catNameInput">
+      </div>
+      <div class="form-group">
+        <label>Sigla (max 5)</label>
+        <input type="text" name="cat_short" class="input" maxlength="5"
+               placeholder="U14M" id="catShortInput">
+      </div>
+      <div class="form-group">
+        <label>Stagione</label>
+        <input type="text" name="cat_season" class="input"
+               value="{{ club.season }}" placeholder="2024/25">
+      </div>
+      <div class="form-group form-group-full">
+        <label>Colore categoria</label>
+        <div class="color-picker-row" id="colorPicker">
+          {% set colors = ['#4a9eff','#3fb950','#ff6b35','#e3b341','#a78bfa','#f778ba','#39d0c8','#ff5370'] %}
+          {% for col in colors %}
+          <label>
+            <input type="radio" name="cat_color" value="{{ col }}"
+                   {% if loop.index == (cats|length % 8) + 1 %}checked{% endif %}
+                   style="display:none" onchange="updateSwatches()">
+            <span class="color-swatch {% if loop.index == (cats|length % 8) + 1 %}selected{% endif %}"
+                  style="background:{{ col }}" onclick="this.previousElementSibling.checked=true;updateSwatches()"></span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-group form-group-full btn-row">
+        <button type="submit" class="btn btn-accent">Crea Categoria</button>
+        <button type="button" class="btn"
+                onclick="document.getElementById('addCatModal').style.display='none'">
+          Annulla
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal importa backup -->
+<div id="importModal" class="modal" style="display:none">
+  <div class="modal-box">
+    <h3>&#8593; Importa Backup</h3>
+    <p style="color:var(--text-muted);font-size:.88rem;margin-bottom:1rem">
+      I dati attuali verranno sostituiti con quelli del backup.<br>
+      Una copia di sicurezza viene salvata automaticamente nella cartella dell'app.
+    </p>
+    <form method="POST" action="/importa-backup" enctype="multipart/form-data" class="form-grid">
+      <div class="form-group form-group-full">
+        <label>File di backup (.zip)</label>
+        <input type="file" name="backup" accept=".zip" class="input" required>
+      </div>
+      <div class="form-group form-group-full btn-row">
+        <button type="submit" class="btn btn-accent"
+                onclick="return confirm('Sostituire tutti i dati con quelli del backup?')">
+          Importa
+        </button>
+        <button type="button" class="btn"
+                onclick="document.getElementById('importModal').style.display='none'">
+          Annulla
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.getElementById('catNameInput').addEventListener('input', function() {
+  var s = document.getElementById('catShortInput');
+  if (!s.value) {
+    s.value = this.value.trim().split(/\s+/).map(function(w){return w[0]||'';}).join('').toUpperCase().slice(0,5);
+  }
+});
+function updateSwatches() {
+  document.querySelectorAll('.color-swatch').forEach(function(el) {
+    el.classList.toggle('selected', el.previousElementSibling && el.previousElementSibling.checked);
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Scheda {{ player.name }} — {{ cat.name }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='report_base.css') }}">
+<style>
+  :root {
+    --accent:        {{ cat.color }};
+    --accent-light:  {{ cat.color }}1a;
+    --accent-xlight: {{ cat.color }}0a;
+  }
+  .num-badge { background: {{ cat.color }}; }
+  .player-hero {
+    display: flex; align-items: center; gap: 18px;
+    background-color: var(--accent-light);
+    background-image: linear-gradient(135deg, rgba(255,255,255,.15) 0%, rgba(255,255,255,.55) 100%);
+    border: 2px solid var(--accent);
+    border-radius: 8px; padding: 14px 20px; margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+  .ph-num  { font-size: 52px; font-weight: 900; color: var(--accent); line-height: 1; letter-spacing: -2px; }
+  .ph-name { font-size: 20px; font-weight: 900; letter-spacing: -.3px; }
+  .ph-meta { font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+  .match-row-header {
+    display: flex; justify-content: space-between; align-items: center;
+    background-color: var(--accent-light);
+    background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.7) 100%);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 4px 4px 0;
+    padding: 5px 10px; margin: 10px 0 4px; font-size: 9.5px;
+  }
+  .trend-row { display: flex; gap: 7px; flex-wrap: wrap; margin: 5px 0 10px; }
+  .trend-pill {
+    background: var(--bg-alt); border: 1px solid var(--border);
+    border-radius: 5px; padding: 4px 10px; font-size: 9px; text-align: center; min-width: 64px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  }
+  .trend-pill b { display: block; font-size: 14px; font-weight: 900; }
+  .trend-pill.good { background: #f0fdf4; border-color: #86efac; }
+  .trend-pill.good b { color: var(--good); }
+  .trend-pill.bad  { background: #fff5f5; border-color: #fca5a5; }
+  .trend-pill.bad  b { color: var(--bad); }
+</style>
+</head>
+<body>
+{% from 'macros_report.html' import pct_td %}
+
+<div class="print-bar">
+  <span class="rpt-brand">⬡ VolleyStat</span>
+  <button class="btn-print" onclick="window.print()">🖨 Stampa / Salva PDF</button>
+  <button class="btn-back"  onclick="window.history.back()">← Torna</button>
+</div>
+<div class="print-bar-spacer"></div>
+
+<div class="page">
+
+  <div class="rpt-header">
+    <div>
+      <div class="rpt-title-main">⬡ VolleyStat{% if club.name %} — {{ club.name }}{% endif %}</div>
+      <div class="rpt-title-sub">
+        Scheda Giocatore · {{ cat.name }}{% if cat.season %} · {{ cat.season }}{% endif %}
+      </div>
+    </div>
+    <div class="rpt-meta">Generato: {{ generated }}</div>
+  </div>
+
+  <!-- Intestazione giocatore -->
+  <div class="player-hero">
+    <div class="ph-num">#{{ player.number }}</div>
+    <div>
+      <div class="ph-name">{{ player.name }}</div>
+      <div class="ph-meta">
+        Ruolo: <b>{{ {'S':'Palleggiatore','O':'Opposto','P':'Schiacciatore',
+                       'C':'Centrale','L':'Libero','U':'Universale'}.get(player.role, player.role) }}</b>
+        &nbsp;·&nbsp; Categoria: <b>{{ cat.name }}</b>
+      </div>
+    </div>
+  </div>
+
+  <!-- Riepilogo stagione -->
+  {% if season_stats %}
+  <h2>Riepilogo Stagione</h2>
+
+  <div class="trend-row">
+    <div class="trend-pill good"><b>{{ season_stats.pts_scored }}</b>punti segnati</div>
+    <div class="trend-pill bad"><b>{{ season_stats.pts_lost }}</b>punti persi</div>
+    <div class="trend-pill good"><b>{{ season_stats.serve_ace }}</b>ace</div>
+    <div class="trend-pill good"><b>{{ season_stats.attack_kill }}</b>kill</div>
+    <div class="trend-pill good"><b>{{ season_stats.block_pt }}</b>muri</div>
+    {% if season_stats.rec_total > 0 %}
+    <div class="trend-pill {% if season_stats.rec_positivity and season_stats.rec_positivity >= 60 %}good{% endif %}">
+      <b>{{ season_stats.rec_positivity if season_stats.rec_positivity is not none else '—' }}{% if season_stats.rec_positivity is not none %}%{% endif %}</b>Ric. Pos%
+    </div>
+    <div class="trend-pill {% if season_stats.rec_efficiency and season_stats.rec_efficiency >= 30 %}good{% elif season_stats.rec_efficiency and season_stats.rec_efficiency < 0 %}bad{% endif %}">
+      <b>{{ season_stats.rec_efficiency if season_stats.rec_efficiency is not none else '—' }}{% if season_stats.rec_efficiency is not none %}%{% endif %}</b>Ric. Eff%
+    </div>
+    {% endif %}
+    {% if season_stats.att_total > 0 %}
+    <div class="trend-pill {% if season_stats.att_positivity and season_stats.att_positivity >= 50 %}good{% endif %}">
+      <b>{{ season_stats.att_positivity if season_stats.att_positivity is not none else '—' }}{% if season_stats.att_positivity is not none %}%{% endif %}</b>Att. Pos%
+    </div>
+    <div class="trend-pill {% if season_stats.att_efficiency and season_stats.att_efficiency >= 25 %}good{% elif season_stats.att_efficiency and season_stats.att_efficiency < 0 %}bad{% endif %}">
+      <b>{{ season_stats.att_efficiency if season_stats.att_efficiency is not none else '—' }}{% if season_stats.att_efficiency is not none %}%{% endif %}</b>Att. Eff%
+    </div>
+    {% endif %}
+    <div class="trend-pill"><b>{{ match_data|length }}</b>partite</div>
+  </div>
+
+  <!-- Tabella ricezione stagione -->
+  {% if season_stats.rec_total > 0 %}
+  <h3>Ricezione — Stagione</h3>
+  <table>
+    <thead><tr>
+      <th>R+</th><th>R–</th><th>Ace sub.</th><th>Totale</th>
+      <th>Positività%</th><th>Efficienza%</th>
+    </tr></thead>
+    <tbody><tr>
+      <td class="{{ 'good' if season_stats.rec_pos }}">{{ season_stats.rec_pos }}</td>
+      <td>{{ season_stats.rec_neg }}</td>
+      <td class="{{ 'bad' if season_stats.rec_err }}">{{ season_stats.rec_err }}</td>
+      <td class="muted">{{ season_stats.rec_total }}</td>
+      {{ pct_td(season_stats.rec_positivity, 60, 40) }}
+      {{ pct_td(season_stats.rec_efficiency, 30, 10) }}
+    </tr></tbody>
+  </table>
+  {% endif %}
+
+  <!-- Tabella attacco stagione -->
+  {% if season_stats.att_total > 0 %}
+  <h3>Attacco — Stagione</h3>
+  <table>
+    <thead><tr>
+      <th>Kill</th><th>Cont.</th><th>Errore</th><th>Murato</th><th>Totale</th>
+      <th>Positività%</th><th>Efficienza%</th>
+    </tr></thead>
+    <tbody><tr>
+      <td class="{{ 'good' if season_stats.attack_kill }}">{{ season_stats.attack_kill }}</td>
+      <td>{{ season_stats.attack_cont }}</td>
+      <td class="{{ 'bad' if season_stats.attack_err }}">{{ season_stats.attack_err }}</td>
+      <td class="{{ 'bad' if season_stats.attack_blk }}">{{ season_stats.attack_blk }}</td>
+      <td class="muted">{{ season_stats.att_total }}</td>
+      {{ pct_td(season_stats.att_positivity, 50, 30) }}
+      {{ pct_td(season_stats.att_efficiency, 25, 0) }}
+    </tr></tbody>
+  </table>
+  {% endif %}
+
+  <!-- Servizio/muro/difesa stagione -->
+  <h3>Servizio · Muro · Difesa · Punti — Stagione</h3>
+  <table>
+    <thead><tr>
+      <th>Ace</th><th>Err.S</th><th>Muro</th><th>Err.M</th>
+      <th>Difesa</th><th>Err.D</th><th>+Pt</th><th>–Pt</th>
+    </tr></thead>
+    <tbody><tr>
+      <td class="{{ 'good' if season_stats.serve_ace }}">{{ season_stats.serve_ace }}</td>
+      <td class="{{ 'bad'  if season_stats.serve_err }}">{{ season_stats.serve_err }}</td>
+      <td class="{{ 'good' if season_stats.block_pt  }}">{{ season_stats.block_pt }}</td>
+      <td class="{{ 'bad'  if season_stats.block_err }}">{{ season_stats.block_err }}</td>
+      <td>{{ season_stats.def_pos }}</td>
+      <td class="{{ 'bad' if season_stats.def_err }}">{{ season_stats.def_err }}</td>
+      <td class="good"><b>{{ season_stats.pts_scored }}</b></td>
+      <td class="bad"><b>{{ season_stats.pts_lost }}</b></td>
+    </tr></tbody>
+  </table>
+
+  <!-- Grafico andamento punti per partita -->
+  {% if match_data %}
+  <h3>Andamento Punti per Partita</h3>
+  {% set h=70 %}{% set bw=30 %}{% set gap=8 %}
+  {% set max_pts = match_data|map(attribute='stats')|map(attribute='pts_scored')|max|default(1) %}
+  {% set tw = match_data|length * (bw+gap) + 10 %}
+  <svg class="bar-chart" viewBox="0 0 {{ tw }} {{ h+32 }}" height="{{ h+32 }}">
+    {% for md in match_data %}
+    {% set x = loop.index0*(bw+gap)+5 %}
+    {% set pts = md.stats.pts_scored %}
+    {% set bh = (pts/max_pts*h)|int if max_pts>0 else 0 %}
+    <rect x="{{ x }}" y="{{ h-bh }}" width="{{ bw }}" height="{{ bh }}"
+          fill="{{ cat.color }}" opacity=".85" rx="2"/>
+    {% if pts > 0 %}
+    <text x="{{ x+bw/2 }}" y="{{ h-bh-2 }}" text-anchor="middle"
+          font-size="7.5" font-weight="700" fill="{{ cat.color }}">{{ pts }}</text>
+    {% endif %}
+    <text x="{{ x+bw/2 }}" y="{{ h+11 }}" text-anchor="middle" font-size="7" fill="#333">
+      {{ md.match.opponent[:6] }}
+    </text>
+    <text x="{{ x+bw/2 }}" y="{{ h+20 }}" text-anchor="middle" font-size="6.5" fill="#999">
+      {{ md.match.date[5:10] }}
+    </text>
+    {% endfor %}
+    <line x1="5" y1="{{ h }}" x2="{{ tw-5 }}" y2="{{ h }}" stroke="#ccc" stroke-width=".5"/>
+  </svg>
+  {% endif %}
+  {% endif %}
+
+  <!-- Dettaglio per partita -->
+  {% if match_data %}
+  <h2>Dettaglio per Partita</h2>
+  {% for md in match_data %}
+  <div class="no-break">
+    <div class="match-row-header">
+      <b>vs {{ md.match.opponent }}</b>
+      <span>{{ md.match.date[:10] }}{% if md.match.time %} · {{ md.match.time }}{% endif %}</span>
+      <span class="{{ 'good' if md.match.sets_us > md.match.sets_them else 'bad' }}">
+        Set {{ md.match.sets_us }}–{{ md.match.sets_them }}
+      </span>
+    </div>
+
+    <!-- Stats partita in riga -->
+    <div class="trend-row">
+      <div class="trend-pill {% if md.stats.pts_scored > 0 %}good{% endif %}">
+        <b>{{ md.stats.pts_scored }}</b>+Pt
+      </div>
+      <div class="trend-pill {% if md.stats.pts_lost > 0 %}bad{% endif %}">
+        <b>{{ md.stats.pts_lost }}</b>–Pt
+      </div>
+      {% if md.stats.rec_total > 0 %}
+      <div class="trend-pill"><b>{{ md.stats.rec_total }}</b>rice.</div>
+      <div class="trend-pill {% if md.stats.rec_positivity and md.stats.rec_positivity >= 60 %}good{% endif %}">
+        <b>{{ md.stats.rec_positivity or '—' }}{% if md.stats.rec_positivity %}%{% endif %}</b>Pos%
+      </div>
+      {% endif %}
+      {% if md.stats.att_total > 0 %}
+      <div class="trend-pill"><b>{{ md.stats.att_total }}</b>att.</div>
+      <div class="trend-pill {% if md.stats.att_efficiency and md.stats.att_efficiency >= 25 %}good{% elif md.stats.att_efficiency and md.stats.att_efficiency < 0 %}bad{% endif %}">
+        <b>{{ md.stats.att_efficiency or '—' }}{% if md.stats.att_efficiency %}%{% endif %}</b>Eff%
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Dettaglio per set nella partita -->
+    {% if md.sets_detail %}
+    <table style="font-size:9px">
+      <thead><tr>
+        <th>Set</th><th>Punteggio</th>
+        <th>R+</th><th>R–</th><th>Ace.s</th><th>Ric.Pos%</th><th>Ric.Eff%</th>
+        <th>Kill</th><th>Cont</th><th>Err</th><th>Mur</th><th>Att.Eff%</th>
+        <th>Ace</th><th>+Pt</th><th>–Pt</th>
+      </tr></thead>
+      <tbody>
+        {% for sd in md.sets_detail %}
+        {% set s = sd.stats %}
+        <tr>
+          <td>{{ sd.number }}</td>
+          <td class="{{ 'good' if sd.score_us > sd.score_them else 'bad' }}">
+            {{ sd.score_us }}–{{ sd.score_them }}
+          </td>
+          <td class="{{ 'good' if s.rec_pos }}">{{ s.rec_pos }}</td>
+          <td>{{ s.rec_neg }}</td>
+          <td class="{{ 'bad' if s.rec_err }}">{{ s.rec_err }}</td>
+          {{ pct_td(s.rec_positivity, 60, 40) }}
+          {{ pct_td(s.rec_efficiency, 30, 10) }}
+          <td class="{{ 'good' if s.attack_kill }}">{{ s.attack_kill }}</td>
+          <td>{{ s.attack_cont }}</td>
+          <td class="{{ 'bad' if s.attack_err }}">{{ s.attack_err }}</td>
+          <td class="{{ 'bad' if s.attack_blk }}">{{ s.attack_blk }}</td>
+          {{ pct_td(s.att_efficiency, 25, 0) }}
+          <td class="{{ 'good' if s.serve_ace }}">{{ s.serve_ace }}</td>
+          <td class="good"><b>{{ s.pts_scored }}</b></td>
+          <td class="bad"><b>{{ s.pts_lost }}</b></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p style="color:#999;font-size:10px;padding:8px 0">
+    Nessuna partita con dati disponibili per questo giocatore.
+  </p>
+  {% endif %}
+
+  <div class="rpt-footer">
+    <span>⬡ VolleyStat · Generato {{ generated }}</span>
+    <span>#{{ player.number }} {{ player.name }} · {{ cat.name }}</span>
+  </div>
+</div>
+</body>
+</html>

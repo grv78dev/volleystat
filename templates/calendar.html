@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}VolleyStat — Calendario{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Calendario Stagione</h1>
+  <span class="tag">{{ matches|length }} partite</span>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-header"><span class="card-icon">➕</span><h2>Aggiungi Partita</h2></div>
+    <form method="POST" class="form-grid">
+      <input type="hidden" name="action" value="add">
+      <div class="form-group">
+        <label>Data *</label>
+        <input type="date" name="date" required class="input">
+      </div>
+      <div class="form-group">
+        <label>Orario</label>
+        <input type="time" name="time" class="input" placeholder="20:30">
+      </div>
+      <div class="form-group">
+        <label>Avversario *</label>
+        <input type="text" name="opponent" required placeholder="Pallavolo Città" class="input">
+      </div>
+      <div class="form-group">
+        <label>Competizione</label>
+        <input type="text" name="competition" placeholder="Serie C, Torneo..." class="input">
+      </div>
+      <div class="form-group">
+        <label>Regolamento</label>
+        <select name="ruleset" class="input">
+          <option value="standard">Standard (25 pt, tie-break a 15)</option>
+          <option value="pgs">PGS (17 pt, 5 set, no tie-break)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Palestra / Luogo</label>
+        <input type="text" name="location" class="input" placeholder="PalaXYZ, Via...">
+      </div>
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="home" checked> &nbsp;Partita in Casa
+        </label>
+      </div>
+      <div class="form-group form-group-full">
+        <button type="submit" class="btn btn-accent">Aggiungi</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="card-header"><span class="card-icon">[copia] </span><h2>Partite in Programma</h2></div>
+    {% if matches %}
+    <div class="match-list">
+      {% for m in matches %}
+      <div class="match-card {% if m.status=='completed' %}match-done{% elif m.status=='ongoing' %}match-live{% endif %}">
+        <div class="match-card-top">
+          <span class="match-card-date">{{ m.date[:10] }}{% if m.time %} · {{ m.time }}{% endif %}</span>
+          <span class="status-dot status-{{ m.status }}">
+            {% if m.status=='completed' %}✓{% elif m.status=='ongoing' %}●{% else %}○{% endif %}
+          </span>
+        </div>
+        <div class="match-card-main">
+          <span class="match-card-opp">vs {{ m.opponent }}</span>
+          {% if m.status=='completed' %}
+          <span class="score-pill {% if m.sets_us > m.sets_them %}score-win{% else %}score-loss{% endif %}">
+            {{ m.sets_us }}–{{ m.sets_them }}
+          </span>
+          {% endif %}
+        </div>
+        <div class="match-card-meta">
+          {% if m.competition %}<span class="badge badge-comp">{{ m.competition }}</span>{% endif %}
+          <span class="badge {% if m.home %}badge-home{% else %}badge-away{% endif %}">
+            {% if m.home %}🏠 Casa{% else %}✈ Trasferta{% endif %}
+          </span>
+          {% if m.get('ruleset') == 'pgs' %}<span class="badge badge-pgs">PGS · 17pt</span>{% endif %}
+          {% if m.location %}<span class="badge badge-loc">📍 {{ m.location }}</span>{% endif %}
+        </div>
+        <div class="match-card-actions">
+          <a href="{{ url_for('match_view', cat_id=cat.id, match_id=m.id) }}" class="btn btn-sm
+            {% if m.status=='ongoing' %}btn-accent{% else %}{% endif %}">
+            {% if m.status=='completed' %}Statistiche
+            {% elif m.status=='ongoing' %}▶ Riprendi
+            {% else %}▷ Inizia
+            {% endif %}
+          </a>
+          <form method="POST" style="display:inline"
+                onsubmit="return confirm('Eliminare la partita vs {{ m.opponent|e }}?')">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="id"     value="{{ m.id }}">
+            <button type="submit" class="btn btn-sm btn-danger">✕</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-msg">Nessuna partita nel calendario.<br>Aggiungi la prima partita →</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

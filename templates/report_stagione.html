@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Report Stagione — {{ cat.name }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='report_base.css') }}">
+<style>
+  :root {
+    --accent:        {{ cat.color }};
+    --accent-light:  {{ cat.color }}1a;
+    --accent-xlight: {{ cat.color }}0a;
+  }
+  .num-badge { background: {{ cat.color }}; }
+  .match-header-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background-color: {{ cat.color }}1a;
+    background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.7) 100%);
+    border-left: 4px solid {{ cat.color }};
+    border-radius: 0 4px 4px 0;
+    padding: 5px 10px; margin: 10px 0 4px; font-size: 10px;
+  }
+  .match-header-row b { font-size: 11px; }
+</style>
+</head>
+<body>
+{% from 'macros_report.html' import pct_td, table_ricezione, table_attacco, table_altri %}
+
+<div class="print-bar">
+  <span class="rpt-brand">⬡ VolleyStat</span>
+  <button class="btn-print" onclick="window.print()">🖨 Stampa / Salva PDF</button>
+  <button class="btn-back"  onclick="window.history.back()">← Torna</button>
+  <span style="margin-left:auto;opacity:.6">Ctrl+P → Salva come PDF</span>
+</div>
+<div class="print-bar-spacer"></div>
+
+<div class="page">
+
+  <div class="rpt-header">
+    <div>
+      <div class="rpt-title-main">⬡ VolleyStat{% if club.name %} — {{ club.name }}{% endif %}</div>
+      <div class="rpt-title-sub">
+        Report Stagione · <b>{{ cat.name }}</b>{% if cat.season %} · {{ cat.season }}{% endif %}
+      </div>
+    </div>
+    <div class="rpt-meta">Generato: {{ generated }}</div>
+  </div>
+
+  <!-- Riepilogo stagione -->
+  {% set wn = [] %}
+  {% set ln = [] %}
+  {% for mr in match_reports %}
+    {% if mr.match.sets_us > mr.match.sets_them %}{% if wn.append(1) %}{% endif %}
+    {% else %}{% if ln.append(1) %}{% endif %}{% endif %}
+  {% endfor %}
+
+  <div class="stat-box-row">
+    <div class="stat-box">
+      <div class="stat-box-val">{{ match_reports|length }}</div>
+      <div class="stat-box-lbl">Partite</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-val" style="color:var(--good)">{{ wn|length }}</div>
+      <div class="stat-box-lbl">Vittorie</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-val" style="color:var(--bad)">{{ ln|length }}</div>
+      <div class="stat-box-lbl">Sconfitte</div>
+    </div>
+    {% if season_stats %}
+    <div class="stat-box">
+      <div class="stat-box-val">
+        {% set top_scorer = namespace(pnum=none, pts=0) %}
+        {% for pnum, s in season_stats.items() %}
+          {% if s.pts_scored > top_scorer.pts %}
+            {% set top_scorer.pts = s.pts_scored %}
+            {% set top_scorer.pnum = pnum %}
+          {% endif %}
+        {% endfor %}
+        {% if top_scorer.pnum %}
+          {{ top_scorer.pts }}
+        {% else %}—{% endif %}
+      </div>
+      <div class="stat-box-lbl">Top Pts</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Calendario partite -->
+  <h2>Calendario e Risultati</h2>
+  <table>
+    <thead>
+      <tr>
+        <th class="left">Data</th><th class="left">Avversario</th>
+        <th>Casa/Trasferta</th><th>Competizione</th>
+        <th>Set Noi</th><th>Set Avv.</th><th>Esito</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for mr in match_reports %}
+      {% set m = mr.match %}
+      <tr>
+        <td class="left">{{ m.date[:10] }}{% if m.time %} {{ m.time }}{% endif %}</td>
+        <td class="left"><b>{{ m.opponent }}</b></td>
+        <td>{% if m.home %}🏠 Casa{% else %}✈ Trasf.{% endif %}</td>
+        <td>{{ m.competition or '—' }}</td>
+        <td class="{{ 'good' if m.sets_us > m.sets_them else '' }}"><b>{{ m.sets_us }}</b></td>
+        <td class="{{ 'bad' if m.sets_us < m.sets_them else '' }}">{{ m.sets_them }}</td>
+        <td class="{{ 'good' if m.sets_us > m.sets_them else 'bad' }}">
+          <b>{% if m.sets_us > m.sets_them %}V{% else %}S{% endif %}</b>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Statistiche stagione cumulative -->
+  {% if season_stats %}
+  <h2>Statistiche Cumulative Stagione</h2>
+
+  <h3>Ricezione — Stagione</h3>
+  {{ table_ricezione(season_stats, p_by_num) }}
+
+  <h3>Attacco — Stagione</h3>
+  {{ table_attacco(season_stats, p_by_num) }}
+
+  <h3>Servizio · Muro · Difesa · Punti — Stagione</h3>
+  {{ table_altri(season_stats, p_by_num) }}
+
+  <!-- Grafico punti stagione per giocatore -->
+  {% set pl_list = season_stats.items()|list|sort(attribute='0') %}
+  {% if pl_list %}
+  <h3>Punti Segnati — Stagione</h3>
+  {% set max_pts = pl_list|map(attribute='1')|map(attribute='pts_scored')|max|default(1) %}
+  {% set bw=30 %}{% set gap=8 %}{% set h=80 %}
+  {% set tw = pl_list|length * (bw+gap) + 10 %}
+  <svg class="bar-chart" viewBox="0 0 {{ tw }} {{ h+30 }}" height="{{ h+30 }}">
+    {% for pnum, s in pl_list %}
+    {% set x = loop.index0*(bw+gap)+5 %}
+    {% set bh = (s.pts_scored/max_pts*h)|int if max_pts>0 else 0 %}
+    <rect x="{{ x }}" y="{{ h-bh }}" width="{{ bw }}" height="{{ bh }}"
+          fill="{{ cat.color }}" opacity=".85" rx="2"/>
+    {% if s.pts_scored > 0 %}
+    <text x="{{ x+bw/2 }}" y="{{ h-bh-2 }}" text-anchor="middle"
+          font-size="8" font-weight="700" fill="{{ cat.color }}">{{ s.pts_scored }}</text>
+    {% endif %}
+    {% set info = p_by_num.get(pnum|int) %}
+    <text x="{{ x+bw/2 }}" y="{{ h+11 }}" text-anchor="middle" font-size="7.5" fill="#333">
+      #{{ pnum }}
+    </text>
+    {% if info %}
+    <text x="{{ x+bw/2 }}" y="{{ h+20 }}" text-anchor="middle" font-size="6.5" fill="#777">
+      {{ info.name.split()[0] if info.name else '' }}
+    </text>
+    {% endif %}
+    {% endfor %}
+    <line x1="5" y1="{{ h }}" x2="{{ tw-5 }}" y2="{{ h }}" stroke="#ccc" stroke-width=".5"/>
+  </svg>
+  {% endif %}
+  {% endif %}
+
+  <!-- Dettaglio per partita -->
+  <h2 class="page-break">Dettaglio per Partita</h2>
+  {% for mr in match_reports %}
+  <div class="no-break">
+    <div class="match-header-row">
+      <b>vs {{ mr.match.opponent }}</b>
+      <span>{{ mr.match.date[:10] }}{% if mr.match.time %} · {{ mr.match.time }}{% endif %}</span>
+      <span>
+        Set: <b class="{{ 'good' if mr.match.sets_us > mr.match.sets_them else 'bad' }}">
+          {{ mr.match.sets_us }}–{{ mr.match.sets_them }}
+        </b>
+      </span>
+      <span>
+        {% for s in mr.all_sets %}
+        Set{{ s.number }}: {{ s.state.score_us }}–{{ s.state.score_them }}{% if not loop.last %} · {% endif %}
+        {% endfor %}
+      </span>
+    </div>
+    {% if mr.total_stats %}
+    {% set has_rec = mr.total_stats.values()|selectattr('rec_total','gt',0)|list|length > 0 %}
+    {% set has_att = mr.total_stats.values()|selectattr('att_total','gt',0)|list|length > 0 %}
+    {% if has_rec %}{{ table_ricezione(mr.total_stats, p_by_num) }}{% endif %}
+    {% if has_att %}{{ table_attacco(mr.total_stats, p_by_num) }}{% endif %}
+    {{ table_altri(mr.total_stats, p_by_num) }}
+    {% else %}
+    <p style="color:#999;font-size:9px;padding:4px 0">Nessun dato statistico registrato.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="rpt-footer">
+    <span>⬡ VolleyStat · Generato {{ generated }}</span>
+    <span>{{ cat.name }}{% if cat.season %} · {{ cat.season }}{% endif %}</span>
+  </div>
+</div>
+</body>
+</html>

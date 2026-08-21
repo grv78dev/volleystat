@@ -1,0 +1,480 @@
+{% extends "base.html" %}
+{% block title %}Set {{ set_num }} — vs {{ match.opponent }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('match_view', cat_id=cat.id, match_id=match.id) }}" class="back-link">← Partita</a>
+    <h1>Set {{ set_num }} <span class="subdued">vs {{ match.opponent }}</span></h1>
+  </div>
+  <div class="header-meta">
+    <a href="{{ url_for('stats_view', cat_id=cat.id, match_id=match.id) }}" class="btn btn-sm">Stats</a>
+    <a href="{{ url_for('report_view', cat_id=cat.id, match_id=match.id) }}" class="btn btn-sm" target="_blank">PDF</a>
+  </div>
+</div>
+
+<!-- SCOREBOARD LIVE -->
+<section class="live-scoreboard" id="liveScoreboard">
+  <div class="live-us">
+    <div class="live-team-label">NOI</div>
+    <div class="live-score" id="scoreUs">{{ state.score_us }}</div>
+    <div class="serve-dot" id="serveDotUs" {% if not state.our_serve %}style="display:none"{% endif %}>●</div>
+  </div>
+  <div class="live-center">
+    <div class="live-set-label">SET {{ set_num }}
+      {% if state.ruleset == 'pgs' %}
+        <span class="set-ruleset-badge">PGS</span>
+      {% endif %}
+    </div>
+    <div class="live-limit-hint">a {{ state.limit }} pt</div>
+    {% if state.set_over %}
+    <div class="set-over-badge {% if state.winner=='us' %}badge-won{% else %}badge-lost{% endif %}">
+      {% if state.winner=='us' %}SET VINTO{% else %}SET PERSO{% endif %}
+    </div>
+    {% endif %}
+    <div class="timeout-row">
+      <span id="toUs">{{ 'T ' * state.timeouts_us }}{{ '○ ' * (2 - state.timeouts_us) }}</span>
+      <span class="to-label">TO</span>
+      <span id="toThem">{{ '○ ' * (2 - state.timeouts_them) }}{{ 'T ' * state.timeouts_them }}</span>
+    </div>
+  </div>
+  <div class="live-them">
+    <div class="serve-dot" id="serveDotThem" {% if state.our_serve %}style="display:none"{% endif %}>●</div>
+    <div class="live-score" id="scoreThem">{{ state.score_them }}</div>
+    <div class="live-team-label">{{ match.opponent|upper }}</div>
+  </div>
+</section>
+
+<!-- CAMPO + LOG -->
+<div class="set-layout">
+
+  <!-- Campo con formazione -->
+  <section class="card court-section" id="courtSection">
+    <div class="card-header"><span class="card-icon">[pallavolo]</span><h3>Campo</h3>
+      <span class="server-info" id="serverInfo">
+        {% if state.server %}
+        Battitore: <b>#{{ state.server }}</b>
+        {% if p_by_num.get(state.server) %} {{ p_by_num[state.server].name }}{% endif %}
+        {% endif %}
+      </span>
+      <button class="orient-btn" id="orientBtn" onclick="cycleOrientation()">↔ Rete: sotto</button>
+    </div>
+
+    <div class="court-with-net" id="courtWithNet">
+      <div class="court-display" id="courtDisplay">
+        {# Celle piatte — posizioni 1-6 standard FIVB
+           Prima linea (front):  2, 3, 4
+           Seconda linea (back): 1, 5, 6  #}
+        {% set cur = state.lineup %}
+        {% for pidx in [1, 2, 3, 4, 5, 6] %}
+        {% set pnum = cur[pidx-1] if cur|length >= pidx else None %}
+        {% set line = 'front' if pidx in [2,3,4] else 'back' %}
+        <div class="court-player {% if pnum == state.server %}player-serving{% endif %}"
+             data-pos="{{ pidx }}" data-line="{{ line }}" id="fieldPos{{ pidx }}">
+          {% if pnum %}
+          <span class="cp-num">#{{ pnum }}</span>
+          <span class="cp-name">{{ p_by_num.get(pnum, {}).get('name', '?')|truncate(8, True, '') }}</span>
+          <span class="cp-role">{{ p_by_num.get(pnum, {}).get('role', '') }}</span>
+          {% else %}—{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="net-line" id="netLine"><span>RETE</span></div>
+    </div>
+  </section>
+
+  <!-- Log eventi -->
+  <section class="card log-section">
+    <div class="card-header"><span class="card-icon">[copia] </span><h3>Ultimi eventi</h3></div>
+    <div class="event-log" id="eventLog">
+      {% for ev in sd.events[-15:]|reverse %}
+      {% set etype = ev.get('type','') %}
+      {% set pts_us = ev.get('points_us', 0) %}
+      {% set pts_them = ev.get('points_them', 0) %}
+      <div class="event-item event-{{ 'point-us' if etype=='point' and pts_us>0
+                                       else 'point-them' if etype=='point' and pts_them>0
+                                       else etype }}">
+        <span class="ev-time">{{ ev.get('timestamp','') }}</span>
+        <span class="ev-desc">{{ ev.get('desc','') }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+</div>
+
+<!-- COMANDO INPUT — cuore dell'interfaccia -->
+<section class="card cmd-section {% if state.set_over %}cmd-disabled{% endif %}">
+  <div class="card-header">
+    <span class="card-icon">⌨</span>
+    <h3>Inserimento Comando</h3>
+    {% if state.set_over %}
+    <span class="badge badge-done">SET TERMINATO</span>
+    <a href="{{ url_for('match_view', cat_id=cat.id, match_id=match.id) }}" class="btn btn-accent">Vai alla Partita →</a>
+    {% endif %}
+  </div>
+
+  {% if not state.set_over %}
+  <div class="cmd-input-area">
+    <div class="cmd-display" id="cmdDisplay">
+      <span id="cmdPreview" class="cmd-text">Pronto...</span>
+    </div>
+    <input type="text"
+           id="cmdInput"
+           class="cmd-input-field"
+           placeholder="Digita comando e premi INVIO  (es: S81  A10  B7  SUB10/12)"
+           autocomplete="off"
+           autocorrect="off"
+           spellcheck="false"
+           autofocus>
+    <div class="cmd-feedback" id="cmdFeedback"></div>
+    <div class="cmd-shortcuts">
+      <button class="shortcut-btn" onclick="typeShortcut('S')">S[n] Ace</button>
+      <button class="shortcut-btn" onclick="typeShortcut('SE')">SE[n] Err.Serv.</button>
+      <button class="shortcut-btn" onclick="typeShortcut('A')">A[n] Kill</button>
+      <button class="shortcut-btn" onclick="typeShortcut('AN')">AN[n] In campo</button>
+      <button class="shortcut-btn" onclick="typeShortcut('AE')">AE[n] Err.Att.</button>
+      <button class="shortcut-btn" onclick="typeShortcut('AB')">AB[n] Murato pt</button>
+      <button class="shortcut-btn" onclick="typeShortcut('ABN')">ABN[n] Murato campo</button>
+      <button class="shortcut-btn" onclick="typeShortcut('B')">B[n] Muro</button>
+      <button class="shortcut-btn" onclick="typeShortcut('R+')">R+[n] Ric.att</button>
+      <button class="shortcut-btn" onclick="typeShortcut('R-')">R-[n] Ric.neg</button>
+      <button class="shortcut-btn" onclick="typeShortcut('RE')">RE[n] Ace sub.</button>
+      <button class="shortcut-btn btn-setter" onclick="sendCmd('W1')">W1</button>
+      <button class="shortcut-btn btn-setter" onclick="sendCmd('W2')">W2</button>
+      <button class="shortcut-btn btn-setter" onclick="sendCmd('W3')">W3</button>
+      <button class="shortcut-btn btn-setter" onclick="sendCmd('W4')">W4</button>
+      <button class="shortcut-btn btn-setter" onclick="sendCmd('W5')">W5</button>
+      <button class="shortcut-btn btn-setter" onclick="sendCmd('W6')">W6</button>
+      <button class="shortcut-btn" onclick="typeShortcut('SUB')">SUB[out]/[in] Sost.</button>
+      <button class="shortcut-btn btn-libero" onclick="typeShortcut('LIB')">LIB[lib]/[cen] Libero</button>
+      {% if sd.libero %}
+      <button class="shortcut-btn btn-libero" id="autoLibBtn" onclick="sendCmd('AUTOLIB')">
+        Auto-LIB: {{ 'ON' if state.auto_libero else 'OFF' }}
+      </button>
+      {% endif %}
+      <button class="shortcut-btn" onclick="sendCmd('PE')">PE Punto Avv.</button>
+      <button class="shortcut-btn btn-undo" onclick="sendCmd('UNDO')">↩ UNDO</button>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Riferimento rapido comandi -->
+  <details class="cmd-ref">
+    <summary>📖 Riferimento Comandi</summary>
+    <div class="cmd-grid">
+      <div class="cmd-group"><div class="cmd-group-title">SERVIZIO</div>
+        <div class="cmd-row"><code>S[n]</code><span>Ace</span></div>
+        <div class="cmd-row"><code>SE[n]</code><span>Errore</span></div>
+      </div>
+      <div class="cmd-group"><div class="cmd-group-title">ATTACCO</div>
+        <div class="cmd-row"><code>A[n]</code><span>Kill (punto)</span></div>
+        <div class="cmd-row"><code>AN[n]</code><span>In campo (cont.)</span></div>
+        <div class="cmd-row"><code>AE[n]</code><span>Errore</span></div>
+        <div class="cmd-row"><code>AB[n]</code><span>Murato — punto avversario</span></div>
+        <div class="cmd-row"><code>ABN[n]</code><span>Murato — palla in gioco</span></div>
+      </div>
+      <div class="cmd-group"><div class="cmd-group-title">MURO</div>
+        <div class="cmd-row"><code>B[n]</code><span>Punto</span></div>
+        <div class="cmd-row"><code>BE[n]</code><span>Errore</span></div>
+      </div>
+      <div class="cmd-group"><div class="cmd-group-title">RICEZIONE</div>
+        <div class="cmd-row"><code>R+[n]</code><span>Permette attacco</span></div>
+        <div class="cmd-row"><code>R-[n]</code><span>Non permette att.</span></div>
+        <div class="cmd-row"><code>RE[n]</code><span>Ace subito</span></div>
+      </div>
+      <div class="cmd-group"><div class="cmd-group-title">PALLEGGIATORE</div>
+        <div class="cmd-row"><code>W[1-6]</code><span>Zona alzata</span></div>
+        <div class="cmd-row" style="font-size:10px;color:var(--text-muted);padding-left:4px">
+          4·3·2 (davanti) · 5·6·1 (dietro)
+        </div>
+        <div class="cmd-row"><code>PAL[n]</code><span>Cambia palleggiatore</span></div>
+      </div>
+      <div class="cmd-group"><div class="cmd-group-title">ALTRO</div>
+        <div class="cmd-row"><code>D[n] / DE[n]</code><span>Difesa / Err.</span></div>
+        <div class="cmd-row"><code>P / PE</code><span>Punto / Punto Avv.</span></div>
+        <div class="cmd-row"><code>SUB[out]/[in]</code><span>Sostituzione ufficiale</span></div>
+        <div class="cmd-row"><code>LIB[lib]/[cen]</code><span>Cambio libero (non conta)</span></div>
+        <div class="cmd-row"><code>AUTOLIB</code><span>Giro autom. centrale-libero ON/OFF</span></div>
+        <div class="cmd-row"><code>T / TO</code><span>Timeout</span></div>
+        <div class="cmd-row"><code>UNDO</code><span>Annulla ultimo</span></div>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- Statistiche set in tempo reale -->
+<section class="card">
+  <div class="card-header"><span class="card-icon">[stats] </span><h3>Stats Giocatori (Set {{ set_num }})</h3></div>
+  <div class="mini-stats" id="miniStats">
+    <!-- filled by JS -->
+    <p class="empty-msg" id="statsEmpty">Nessun dato ancora.</p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MATCH_ID  = '{{ match.id }}';
+const CAT_ID    = '{{ cat.id }}';
+const SET_NUM   = {{ set_num }};
+const P_BY_NUM  = {{ p_by_num|tojson }};
+const SET_OVER_AT_LOAD = {{ 'true' if state.set_over else 'false' }};
+let cmdHistory  = [];
+let histIdx     = -1;
+
+const esc = s => String(s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const input     = document.getElementById('cmdInput');
+const feedback  = document.getElementById('cmdFeedback');
+const preview   = document.getElementById('cmdPreview');
+
+if (input) {
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      sendCmd(input.value.trim());
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (histIdx < cmdHistory.length - 1) histIdx++;
+      input.value = cmdHistory[histIdx] || '';
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (histIdx > 0) {
+        histIdx--;
+        input.value = cmdHistory[histIdx];
+      } else {
+        histIdx = -1;
+        input.value = '';
+      }
+    }
+  });
+  input.addEventListener('input', () => {
+    preview.textContent = input.value || 'Pronto...';
+    preview.className = 'cmd-text';
+  });
+}
+
+function typeShortcut(prefix) {
+  if (!input) return;
+  input.value = prefix;
+  input.focus();
+  preview.textContent = prefix;
+}
+
+function sendCmd(cmd) {
+  if (!cmd) return;
+  fetch(`/c/${CAT_ID}/partita/${MATCH_ID}/set/${SET_NUM}/comando`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({command: cmd})
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      showFeedback(data.error, 'error');
+    } else {
+      if (cmd.toUpperCase() !== 'UNDO') {
+        cmdHistory.unshift(cmd);
+        if (cmdHistory.length > 50) cmdHistory.pop();
+      }
+      histIdx = -1;
+      if (input) { input.value = ''; preview.textContent = 'Pronto...'; }
+      let msg = data.undone ? `↩ Annullato: ${data.undone}` : (data.event ? data.event.desc : '✓');
+      if (data.auto_event) msg += ' · ' + data.auto_event.desc;
+      showFeedback(msg, data.undone ? 'undo' : 'ok');
+      updateUI(data.state);
+      loadStats();
+    }
+  })
+  .catch(() => showFeedback('Errore di rete', 'error'));
+}
+
+function showFeedback(msg, type) {
+  feedback.textContent = msg;
+  feedback.className = 'cmd-feedback fb-' + type;
+  setTimeout(() => { feedback.className = 'cmd-feedback'; }, 3000);
+}
+
+function updateUI(state) {
+  if (!state) return;
+  document.getElementById('scoreUs').textContent    = state.score_us;
+  document.getElementById('scoreThem').textContent  = state.score_them;
+
+  // Aggiorna campo
+  const lu = state.lineup;
+  const FRONT_POSITIONS = new Set([2, 3, 4]);
+  [1,2,3,4,5,6].forEach(pidx => {
+    const pnum = lu[pidx-1];
+    const cell = document.getElementById('fieldPos' + pidx);
+    if (!cell) return;
+    const info = pnum ? P_BY_NUM[pnum] : null;
+    const line = FRONT_POSITIONS.has(pidx) ? 'front' : 'back';
+    cell.className = 'court-player' + (pnum === state.server ? ' player-serving' : '');
+    cell.dataset.line = line;
+    cell.innerHTML = pnum
+      ? `<span class="cp-num">#${pnum}</span>
+         <span class="cp-name">${info ? esc(info.name.split(' ')[0]) : '?'}</span>
+         <span class="cp-role">${info ? esc(info.role) : ''}</span>`
+      : '—';
+  });
+
+  // Pallini servizio sullo scoreboard
+  const dotUs   = document.getElementById('serveDotUs');
+  const dotThem = document.getElementById('serveDotThem');
+  if (dotUs)   dotUs.style.display   = state.our_serve ? '' : 'none';
+  if (dotThem) dotThem.style.display = state.our_serve ? 'none' : '';
+
+  // Serve indicator
+  const si = document.getElementById('serverInfo');
+  if (si) {
+    if (state.server) {
+      const info = P_BY_NUM[state.server];
+      si.innerHTML = `Battitore: <b>#${state.server}</b>${info ? ' ' + esc(info.name) : ''}`;
+    } else {
+      si.innerHTML = 'Servizio avversario';
+    }
+  }
+
+  // Toggle giro automatico centrale-libero
+  const alBtn = document.getElementById('autoLibBtn');
+  if (alBtn) alBtn.textContent = 'Auto-LIB: ' + (state.auto_libero ? 'ON' : 'OFF');
+
+  // Timeout
+  const toUs = document.getElementById('toUs');
+  if (toUs) toUs.textContent =
+    'T '.repeat(state.timeouts_us) + '○ '.repeat(Math.max(0, 2 - state.timeouts_us));
+  const toThem = document.getElementById('toThem');
+  if (toThem) toThem.textContent =
+    '○ '.repeat(Math.max(0, 2 - state.timeouts_them)) + 'T '.repeat(state.timeouts_them);
+
+  // Ricarica solo alla transizione: la pagina già renderizzata
+  // con set chiuso non deve entrare in un loop di reload
+  if (state.set_over && !SET_OVER_AT_LOAD) {
+    setTimeout(() => location.reload(), 800);
+  }
+}
+
+function loadStats() {
+  fetch(`/c/${CAT_ID}/partita/${MATCH_ID}/set/${SET_NUM}/stato`)
+  .then(r => r.json())
+  .then(data => {
+    if (data.state) updateUI(data.state);
+    renderMiniStats(data.player_stats || {});
+    renderEventLog(data.recent_events);
+  })
+  .catch(() => {});
+}
+
+function renderMiniStats(pstats) {
+  const el = document.getElementById('miniStats');
+  const empty = document.getElementById('statsEmpty');
+  const keys = Object.keys(pstats);
+  if (!keys.length) { if(empty) empty.style.display=''; return; }
+  if(empty) empty.style.display='none';
+
+  function fmtPct(v) {
+    if (v === null || v === undefined) return '<td class="muted-cell">—</td>';
+    const cls = v >= 60 ? 'pct-good' : v >= 30 ? 'pct-mid' : v < 0 ? 'pct-bad' : '';
+    return `<td class="${cls}"><b>${v}%</b></td>`;
+  }
+
+  let html = `<table class="mini-stats-table">
+    <thead>
+      <tr>
+        <th>N°</th><th>Atleta</th>
+        <th colspan="4" class="group-header">RICEZIONE</th>
+        <th colspan="5" class="group-header">ATTACCO</th>
+        <th>Ace</th><th>+Pt</th><th>–Pt</th>
+      </tr>
+      <tr class="subrow">
+        <th></th><th></th>
+        <th>R+</th><th>R–</th><th>Ace.s</th><th>Pos%&nbsp;Eff%</th>
+        <th>Kill</th><th>Cont</th><th>Err</th><th>Mur</th><th>Pos%&nbsp;Eff%</th>
+        <th></th><th></th><th></th>
+      </tr>
+    </thead><tbody>`;
+
+  keys.sort((a,b)=>parseInt(a)-parseInt(b)).forEach(n => {
+    const s = pstats[n];
+    const info = P_BY_NUM[n];
+    const name = info ? esc(info.name.split(' ')[0]) : `#${n}`;
+    const rp = s.rec_positivity !== null && s.rec_positivity !== undefined ? `<span class="${s.rec_positivity>=60?'pct-good':s.rec_positivity>=30?'pct-mid':''}">${s.rec_positivity}%</span>` : '—';
+    const re = s.rec_efficiency !== null && s.rec_efficiency !== undefined ? `<span class="${s.rec_efficiency>=30?'pct-good':s.rec_efficiency<0?'pct-bad':''}">${s.rec_efficiency}%</span>` : '—';
+    const ap = s.att_positivity !== null && s.att_positivity !== undefined ? `<span class="${s.att_positivity>=50?'pct-good':s.att_positivity>=25?'pct-mid':''}">${s.att_positivity}%</span>` : '—';
+    const ae = s.att_efficiency !== null && s.att_efficiency !== undefined ? `<span class="${s.att_efficiency>=25?'pct-good':s.att_efficiency<0?'pct-bad':''}">${s.att_efficiency}%</span>` : '—';
+    html += `<tr>
+      <td><span class="jersey-num">${n}</span></td>
+      <td class="name-cell">${name}</td>
+      <td class="${s.rec_pos>0?'stat-good':''}">${s.rec_pos||0}</td>
+      <td>${s.rec_neg||0}</td>
+      <td class="${s.rec_err>0?'stat-bad':''}">${s.rec_err||0}</td>
+      <td class="pct-combined">${rp} / ${re}</td>
+      <td class="${s.attack_kill>0?'stat-good':''}">${s.attack_kill||0}</td>
+      <td>${s.attack_cont||0}</td>
+      <td class="${s.attack_err>0?'stat-bad':''}">${s.attack_err||0}</td>
+      <td class="${s.attack_blk>0?'stat-bad':''}">${s.attack_blk||0}</td>
+      <td class="pct-combined">${ap} / ${ae}</td>
+      <td class="${s.serve_ace>0?'stat-good':''}">${s.serve_ace||0}</td>
+      <td class="stat-pts-good">${s.pts_scored||0}</td>
+      <td class="stat-pts-bad">${s.pts_lost||0}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderEventLog(events) {
+  const el = document.getElementById('eventLog');
+  if (!el || !events) return;
+  el.innerHTML = [...events].reverse().map(ev => {
+    let cls = 'event-item ';
+    if (ev.type === 'point') cls += ev.points_us > 0 ? 'event-point-us' : 'event-point-them';
+    else if (ev.type === 'timeout') cls += 'event-timeout';
+    else if (ev.type === 'substitution') cls += 'event-sub';
+    else if (ev.type === 'libero_exchange') cls += 'event-libero';
+    else if (ev.type === 'setter_change') cls += 'event-setter-change';
+    else cls += 'event-stat';
+    return `<div class="${cls}">
+      <span class="ev-time">${esc(ev.timestamp||'')}</span>
+      <span class="ev-desc">${esc(ev.desc||'')}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Orientamento campo ────────────────────────────────────────
+const ORIENT_CLASSES = ['', 'orient-right', 'orient-left'];
+const ORIENT_LABELS  = ['Rete: sotto', 'Rete: destra', 'Rete: sinistra'];
+let currentOrient = parseInt(localStorage.getItem('courtOrient') || '0');
+
+function applyOrientation() {
+  const section = document.getElementById('courtSection');
+  section.classList.remove('orient-right', 'orient-left');
+  if (ORIENT_CLASSES[currentOrient]) section.classList.add(ORIENT_CLASSES[currentOrient]);
+  document.getElementById('orientBtn').textContent = '↔ ' + ORIENT_LABELS[currentOrient];
+}
+
+function cycleOrientation() {
+  currentOrient = (currentOrient + 1) % ORIENT_CLASSES.length;
+  localStorage.setItem('courtOrient', currentOrient);
+  applyOrientation();
+}
+
+applyOrientation();
+
+// Focus automatico sull'input
+if (input) input.focus();
+document.addEventListener('keypress', e => {
+  if (input && document.activeElement !== input &&
+      !['INPUT','BUTTON','SELECT','TEXTAREA'].includes(e.target.tagName)) {
+    input.focus();
+  }
+});
+
+// Carica statistiche iniziali + polling (aggiorna anche da altri dispositivi)
+loadStats();
+setInterval(loadStats, 2000);
+</script>
+{% endblock %}

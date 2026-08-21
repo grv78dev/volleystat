@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}SETPOINT{% endblock %}</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0d1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VolleyStat">
+<link rel="apple-touch-icon" href="/static/icons/icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;500;600;700;800&family=Barlow:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% if cat is defined and cat %}
+<style>
+  :root { --cat-accent: {{ cat.color }}; }
+  .navbar { border-bottom-color: {{ cat.color }}; border-bottom-width: 2px; }
+</style>
+{% endif %}
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="{{ url_for('home') }}" class="sp-logo">
+    <svg class="sp-logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="13.5" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M16 2.5 C21 9 21 23 16 29.5" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M16 2.5 C11 9 11 23 16 29.5" stroke="var(--text-muted)" stroke-width="1" opacity=".6"/>
+      <path d="M2.5 13 C8 11 24 11 29.5 13" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M2.5 19 C8 21 24 21 29.5 19" stroke="var(--text-muted)" stroke-width="1" opacity=".6"/>
+    </svg>
+    <span class="sp-logo-text">SET<span>POINT</span></span>
+  </a>
+
+  {% if cat is defined and cat %}
+  <div class="nav-divider"></div>
+  <a href="{{ url_for('index', cat_id=cat.id) }}" class="nav-cat-link"
+     style="--dot-color:{{ cat.color }}">
+    <span class="nav-cat-dot" style="background:{{ cat.color }}"></span>
+    <span class="nav-cat-abbr">{{ cat.short }}</span>
+    <span class="nav-cat-full">{{ cat.name }}</span>
+  </a>
+  <div class="nav-links">
+    <a href="{{ url_for('roster',   cat_id=cat.id) }}"
+       class="nav-link {% if request.endpoint=='roster'   %}active{% endif %}">Rosa</a>
+    <a href="{{ url_for('calendar', cat_id=cat.id) }}"
+       class="nav-link {% if request.endpoint=='calendar' %}active{% endif %}">Calendario</a>
+    <a href="{{ url_for('confronto') }}"
+       class="nav-link {% if request.endpoint=='confronto'%}active{% endif %}">Confronto</a>
+  </div>
+  {% else %}
+  <div class="nav-links" style="margin-left:16px">
+    <a href="{{ url_for('confronto') }}"
+       class="nav-link {% if request.endpoint=='confronto'%}active{% endif %}">Confronto</a>
+  </div>
+  {% endif %}
+
+  <div class="nav-spacer"></div>
+
+  <button class="theme-toggle" onclick="toggleTheme()" title="Cambia tema">
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</nav>
+
+<div class="main-content">
+  {% block content %}{% endblock %}
+</div>
+
+<script>
+(function(){
+  var t = localStorage.getItem('sp-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme(){
+  var h = document.documentElement;
+  var n = h.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  h.setAttribute('data-theme', n);
+  localStorage.setItem('sp-theme', n);
+}
+</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>VolleyStat — Confronto Categorie</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav class="navbar">
+  <a href="{{ url_for('home') }}" class="nav-brand">SETPOINT</a>
+  <div class="nav-links">
+    <a href="{{ url_for('confronto') }}" class="nav-link active">Confronto</a>
+  </div>
+</nav>
+
+<main class="main-content">
+
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('home') }}" class="back-link">← Home</a>
+    <h1>Confronto Categorie</h1>
+    {% if club.name %}<span class="tag">{{ club.name }}</span>{% endif %}
+    {% if club.season %}<span class="tag">{{ club.season }}</span>{% endif %}
+  </div>
+  <div class="header-meta">
+    <a href="{{ url_for('confronto_report') }}" class="btn btn-accent" target="_blank">Esporta PDF</a>
+  </div>
+</div>
+
+{% if data %}
+
+<!-- TABELLA CONFRONTO -->
+<section class="card">
+  <div class="card-header"><span class="card-icon">[stats] </span><h2>Riepilogo Stagione</h2></div>
+  <div class="stats-table-wrap">
+  <table class="data-table confronto-table">
+    <thead>
+      <tr>
+        <th class="left">Categoria</th>
+        <th>Atleti</th>
+        <th>Partite</th>
+        <th>Vinte</th>
+        <th>Perse</th>
+        <th>%Vitt.</th>
+        <th>Ø Punti/Set</th>
+        <th>Set Totali</th>
+        <th>Top Scorer</th>
+        <th>Azioni</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in data %}
+      {% set s = d.stats %}
+      {% set win_pct = (s.wins / s.matches_played * 100)|round|int if s.matches_played > 0 else 0 %}
+      <tr>
+        <td class="left">
+          <div class="confronto-cat-label">
+            <span class="cat-dot" style="background:{{ d.cat.color }}"></span>
+            <a href="{{ url_for('index', cat_id=d.cat.id) }}" class="cat-link"
+               style="color:{{ d.cat.color }}">{{ d.cat.name }}</a>
+          </div>
+        </td>
+        <td>{{ s.p_by_num|length }}</td>
+        <td>{{ s.matches_played }}</td>
+        <td class="{{ 'stat-good' if s.wins > 0 }}">{{ s.wins }}</td>
+        <td class="{{ 'stat-bad' if s.losses > 0 }}">{{ s.losses }}</td>
+        <td>
+          <div class="pct-bar-wrap">
+            <div class="pct-bar" style="width:{{ win_pct }}%; background:{{ d.cat.color }}"></div>
+            <span class="pct-label">{{ win_pct }}%</span>
+          </div>
+        </td>
+        <td><b>{{ s.avg_pts }}</b></td>
+        <td>{{ s.total_sets }}</td>
+        <td>
+          {% if d.top_scorer_info %}
+          <span class="jersey-num" style="background:{{ d.cat.color }}; color:#0d1117">
+            {{ d.top_scorer_info.number }}
+          </span>
+          {{ d.top_scorer_info.name }}
+          <span class="muted-pts">({{ s.top_pts }} pt)</span>
+          {% elif s.top_scorer %}
+          <span class="jersey-num">#{{ s.top_scorer }}</span>
+          <span class="muted-pts">({{ s.top_pts }} pt)</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('index', cat_id=d.cat.id) }}" class="btn btn-sm"
+             style="border-color:{{ d.cat.color }}; color:{{ d.cat.color }}">
+            Vai →
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- GRAFICI COMPARATIVI -->
+<div class="grid-2">
+
+  <!-- Partite vinte/perse per categoria -->
+  <section class="card">
+    <div class="card-header"><span class="card-icon">🏆</span><h2>Vittorie / Sconfitte</h2></div>
+    <div class="bar-chart-vert" id="wlChart">
+      {% for d in data %}
+      {% set s = d.stats %}
+      {% set total = s.wins + s.losses %}
+      {% set w_pct = (s.wins / total * 100)|round|int if total > 0 else 0 %}
+      {% set l_pct = 100 - w_pct if total > 0 else 0 %}
+      <div class="wl-row">
+        <div class="wl-cat-label">
+          <span class="cat-dot" style="background:{{ d.cat.color }}"></span>
+          {{ d.cat.short }}
+        </div>
+        <div class="wl-bar-track">
+          {% if total > 0 %}
+          <div class="wl-bar-win" style="width:{{ w_pct }}%; background:{{ d.cat.color }}">
+            <span class="wl-bar-val">{{ s.wins }}W</span>
+          </div>
+          {% if s.losses > 0 %}
+          <div class="wl-bar-loss" style="width:{{ l_pct }}%">
+            <span class="wl-bar-val">{{ s.losses }}L</span>
+          </div>
+          {% endif %}
+          {% else %}
+          <div class="wl-bar-empty">Nessuna partita</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Media punti per set -->
+  <section class="card">
+    <div class="card-header"><span class="card-icon">📈</span><h2>Media Punti per Set</h2></div>
+    {% set max_avg = data|map(attribute='stats')|map(attribute='avg_pts')|max|default(1) %}
+    <div class="avg-chart">
+      {% for d in data %}
+      {% set s = d.stats %}
+      {% set bar_w = (s.avg_pts / max_avg * 100)|round|int if max_avg > 0 else 0 %}
+      <div class="avg-row">
+        <div class="avg-label">
+          <span class="cat-dot" style="background:{{ d.cat.color }}"></span>
+          {{ d.cat.short }}
+        </div>
+        <div class="avg-bar-track">
+          <div class="avg-bar" style="width:{{ bar_w }}%; background:{{ d.cat.color }}"></div>
+        </div>
+        <div class="avg-val">{{ s.avg_pts }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+</div>
+
+<!-- DETTAGLIO MARCATORI PER CATEGORIA -->
+<section class="card">
+  <div class="card-header"><span class="card-icon"></span><h2>Top Marcatori per Categoria</h2></div>
+  <div class="top-scorers-grid">
+    {% for d in data %}
+    {% set s = d.stats %}
+    <div class="top-cat-block">
+      <div class="top-cat-header" style="border-color:{{ d.cat.color }}">
+        <span class="cat-badge-sm" style="background:{{ d.cat.color }}">{{ d.cat.short }}</span>
+        <span>{{ d.cat.name }}</span>
+      </div>
+      {% if s.player_season %}
+        {% set sorted_players = s.player_season.items()|sort(attribute='1.pts_scored', reverse=True) %}
+        <table class="top-scorer-table">
+          <thead>
+            <tr><th>N°</th><th>Atleta</th><th>Pt</th><th>Ace</th><th>Kill</th><th>Muro</th></tr>
+          </thead>
+          <tbody>
+          {% for pnum, ps in sorted_players %}
+          {% if loop.index <= 5 %}
+          {% set info = s.p_by_num.get(pnum|int) %}
+          <tr {% if loop.index == 1 %}class="top-row"{% endif %}>
+            <td><span class="jersey-num" style="background:{{ d.cat.color }};color:#0d1117">{{ pnum }}</span></td>
+            <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+            <td><b>{{ ps.pts_scored }}</b></td>
+            <td>{{ ps.serve_ace }}</td>
+            <td>{{ ps.attack_kill }}</td>
+            <td>{{ ps.block_pt }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty-msg">Nessun dato ancora.</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% else %}
+<div class="empty-hero">
+  <div class="empty-icon">⚖</div>
+  <p>Nessuna categoria ancora.<br>
+  <a href="{{ url_for('home') }}" class="btn btn-accent">← Crea le categorie</a></p>
+</div>
+{% endif %}
+
+</main>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

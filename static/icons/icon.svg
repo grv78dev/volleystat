@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="90" fill="#0d1117"/>
+  <!-- Pallone -->
+  <circle cx="256" cy="210" r="130" fill="none" stroke="#b6f000" stroke-width="14"/>
+  <!-- Costola verticale principale -->
+  <path d="M256 80 C300 130 300 290 256 340" fill="none" stroke="#b6f000" stroke-width="12"/>
+  <!-- Costola verticale secondaria -->
+  <path d="M256 80 C212 130 212 290 256 340" fill="none" stroke="#b6f000" stroke-width="10" opacity="0.45"/>
+  <!-- Costola orizzontale superiore -->
+  <path d="M128 172 C178 158 334 158 384 172" fill="none" stroke="#b6f000" stroke-width="12"/>
+  <!-- Costola orizzontale inferiore -->
+  <path d="M128 248 C178 262 334 262 384 248" fill="none" stroke="#b6f000" stroke-width="10" opacity="0.45"/>
+  <!-- Testo VS -->
+  <text x="256" y="462" text-anchor="middle"
+        font-family="system-ui,ui-sans-serif,sans-serif"
+        font-size="108" font-weight="900" letter-spacing="-4"
+        fill="#b6f000">VS</text>
+</svg>

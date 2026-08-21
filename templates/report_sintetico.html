@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Scheda Statistica — vs {{ match.opponent }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='report_base.css') }}">
+<style>
+:root {
+  --accent:  {{ cat.color }};
+  --acc-dk:  {{ cat.color }};
+}
+
+@page { size: A4 landscape; margin: 7mm 8mm; }
+
+body { font-size: 9px; background: #fff; }
+
+.page {
+  max-width: none;
+  padding: 0;
+  background: #fff;
+  min-height: auto;
+  box-shadow: none;
+}
+
+/* ── HEADER ── */
+.sint-header {
+  display: flex;
+  align-items: stretch;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 4px 4px 0 0;
+  margin-bottom: 4px;
+  overflow: hidden;
+}
+.sint-header-brand {
+  padding: 7px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid rgba(255,255,255,.2);
+  min-width: 130px;
+}
+.sint-brand     { font-size: 13px; font-weight: 900; letter-spacing: -.3px; }
+.sint-category  { font-size: 8.5px; opacity: .8; margin-top: 1px; }
+.sint-header-match {
+  flex: 1;
+  padding: 7px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.sint-vs        { font-size: 14px; font-weight: 800; letter-spacing: .2px; }
+.sint-info      { font-size: 8px; opacity: .8; margin-top: 2px; }
+.sint-header-result {
+  padding: 7px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.18);
+  min-width: 160px;
+  border-left: 1px solid rgba(255,255,255,.2);
+}
+.sint-score-main { font-size: 20px; font-weight: 900; letter-spacing: 2px; line-height: 1; }
+.sint-score-sets { font-size: 8px; margin-top: 4px; display: flex; gap: 5px; }
+.sint-set-pill {
+  background: rgba(255,255,255,.2);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: 600;
+}
+.sint-set-pill.won { background: rgba(255,255,255,.45); }
+
+.sint-header-meta {
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-left: 1px solid rgba(255,255,255,.2);
+  font-size: 8px;
+  opacity: .85;
+  min-width: 90px;
+}
+
+/* ── MAIN TABLE ── */
+.sint-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8px;
+  table-layout: fixed;
+}
+
+.sint-table th, .sint-table td {
+  border: 1px solid #d1d5db;
+  text-align: center;
+  padding: 2px 2px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.col-num  { width: 18px; }
+.col-name { width: 100px; text-align: left !important; padding-left: 4px !important; font-weight: 600; }
+.col-set  { width: 16px; }
+.col-tot  { width: 20px; font-weight: 700; }
+.col-std  { width: 24px; }
+.col-pct  { width: 30px; }
+
+/* Section header (top level) */
+.shdr-top {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: 7.5px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  padding: 3px 2px;
+}
+/* Sub-header (column labels) */
+.shdr-sub {
+  background: #2d6a4f;
+  color: #fff;
+  font-weight: 600;
+  font-size: 7px;
+  padding: 2px 2px;
+}
+/* Section color tints on sub-header */
+.grp-set  .shdr-sub { background: #374151; }
+.grp-bat  .shdr-sub { background: #1d4ed8; }
+.grp-rec  .shdr-sub { background: #15803d; }
+.grp-att  .shdr-sub { background: #b45309; }
+.grp-mur  .shdr-sub { background: #7c3aed; }
+.grp-pt   .shdr-sub { background: #475569; }
+
+/* Data rows */
+.sint-table tbody tr { background: #fff; }
+.sint-table tbody tr:nth-child(even) { background: #f8fdf9; }
+
+/* Totals row */
+.row-total td {
+  background: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 800;
+}
+.row-total .col-name { font-weight: 800; }
+
+/* Value styles */
+.v-none   { color: #d1d5db; }
+.v-good   { color: #15803d; font-weight: 700; }
+.v-warn   { color: #b45309; font-weight: 700; }
+.v-bad    { color: #dc2626; }
+.set-yes  { color: var(--accent); font-weight: 800; }
+.set-no   { color: #e5e7eb; }
+
+/* ── PER-SET BREAKDOWN ── */
+.section-title {
+  font-size: 8.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 2px;
+  margin: 6px 0 3px;
+}
+
+.set-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8px;
+  table-layout: fixed;
+}
+.set-table th, .set-table td {
+  border: 1px solid #d1d5db;
+  text-align: center;
+  padding: 2px 3px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.set-table th {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 7px;
+}
+.set-table td.set-label {
+  text-align: left;
+  font-weight: 700;
+  background: #f1f5f9;
+  padding-left: 6px;
+}
+.set-table tr:nth-child(even) td { background: #f8fdf9; }
+.set-table tr:nth-child(even) td.set-label { background: #e8f0ea; }
+
+/* ── FOOTER ── */
+.sint-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 5px;
+  font-size: 7.5px;
+  color: #9ca3af;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 3px;
+}
+
+/* ── PRINT ── */
+@media print {
+  .print-bar, .print-bar-spacer { display: none; }
+  body { font-size: 8px; background: #fff; }
+  .page { padding: 0; box-shadow: none; }
+  .sint-table tbody tr:hover { background: inherit; }
+}
+</style>
+</head>
+<body>
+
+<div class="print-bar">
+  <span class="rpt-brand">⬡ VolleyStat</span>
+  <button class="btn-print" onclick="window.print()">🖨 Stampa / Salva PDF</button>
+  <button class="btn-back" onclick="window.history.back()">← Torna</button>
+  <span style="margin-left:auto;font-size:11px;opacity:.5">Formato A4 orizzontale · Ctrl+P → Salva come PDF</span>
+</div>
+<div class="print-bar-spacer"></div>
+
+<div class="page">
+
+  <!-- ── HEADER ── -->
+  <div class="sint-header">
+    <div class="sint-header-brand">
+      <div class="sint-brand">⬡ VolleyStat{% if club.name %} · {{ club.name }}{% endif %}</div>
+      <div class="sint-category">{{ cat.name }}{% if cat.season %} · {{ cat.season }}{% endif %}</div>
+    </div>
+    <div class="sint-header-match">
+      <div class="sint-vs">vs {{ match.opponent | upper }}</div>
+      <div class="sint-info">
+        {% if match.date %}{{ match.date[:10] }}{% endif %}
+        {% if match.time %} · {{ match.time }}{% endif %}
+        {% if match.location %} · {{ match.location }}{% endif %}
+        {% if match.competition %} · {{ match.competition }}{% endif %}
+      </div>
+    </div>
+    <div class="sint-header-result">
+      <div class="sint-score-main">{{ match.sets_us }} – {{ match.sets_them }}</div>
+      <div class="sint-score-sets">
+        {% for s in all_sets %}
+        <span class="sint-set-pill {% if s.state.winner == 'us' %}won{% endif %}">
+          {{ s.state.score_us }}–{{ s.state.score_them }}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="sint-header-meta">
+      Scheda Statistica<br>
+      <b>{{ 'VITTORIA' if match.sets_us > match.sets_them else 'SCONFITTA' }}</b><br>
+      {{ generated }}
+    </div>
+  </div>
+
+  <!-- ── MAIN STATS TABLE ── -->
+  <table class="sint-table">
+    <thead>
+      <!-- Top section headers -->
+      <tr>
+        <th class="col-num shdr-top" rowspan="2">#</th>
+        <th class="col-name shdr-top" rowspan="2" style="text-align:left;padding-left:4px">Giocatrice</th>
+        <!-- SET -->
+        <th class="shdr-top grp-set" colspan="{{ all_sets|length + 1 }}">SET</th>
+        <!-- BATTUTA -->
+        <th class="shdr-top grp-bat" colspan="2">BATTUTA</th>
+        <!-- RICEZIONE -->
+        <th class="shdr-top grp-rec" colspan="3">RICEZIONE</th>
+        <!-- ATTACCO -->
+        <th class="shdr-top grp-att" colspan="4">ATTACCO</th>
+        <!-- MURO -->
+        <th class="shdr-top grp-mur" colspan="1">MURO</th>
+        <!-- PUNTI -->
+        <th class="shdr-top grp-pt" colspan="2">PUNTI</th>
+      </tr>
+      <!-- Sub-column labels -->
+      <tr>
+        <!-- SET labels -->
+        {% for s in all_sets %}
+        <th class="col-set shdr-sub grp-set">{{ s.number }}°</th>
+        {% endfor %}
+        <th class="col-tot shdr-sub grp-set">Tot</th>
+        <!-- BATTUTA -->
+        <th class="col-std shdr-sub grp-bat">Err</th>
+        <th class="col-std shdr-sub grp-bat">Ace</th>
+        <!-- RICEZIONE -->
+        <th class="col-std shdr-sub grp-rec">Err</th>
+        <th class="col-pct shdr-sub grp-rec">Pos%</th>
+        <th class="col-pct shdr-sub grp-rec">Prf%</th>
+        <!-- ATTACCO -->
+        <th class="col-std shdr-sub grp-att">Err</th>
+        <th class="col-std shdr-sub grp-att">Mur</th>
+        <th class="col-std shdr-sub grp-att">Pt</th>
+        <th class="col-pct shdr-sub grp-att">Eff%</th>
+        <!-- MURO -->
+        <th class="col-std shdr-sub grp-mur">Pt</th>
+        <!-- PUNTI -->
+        <th class="col-std shdr-sub grp-pt">Err</th>
+        <th class="col-std shdr-sub grp-pt">Pt</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pnum in sorted_players %}
+      {% set p = total_stats[pnum] %}
+      {% set info = p_by_num.get(pnum, {}) %}
+      {% set psets = player_sets.get(pnum, []) %}
+      <tr>
+        <td class="col-num">{{ pnum }}</td>
+        <td class="col-name">{{ info.name if info else pnum }}{% if info.role == 'L' %} <span style="font-size:6.5px;opacity:.6">(L)</span>{% endif %}</td>
+        <!-- SET indicators -->
+        {% for s in all_sets %}
+        <td class="col-set {% if s.number in psets %}set-yes{% else %}set-no{% endif %}">
+          {{ '●' if s.number in psets else '·' }}
+        </td>
+        {% endfor %}
+        <td class="col-tot">{{ psets | length or '' }}</td>
+        <!-- BATTUTA -->
+        <td class="col-std {% if p.serve_err > 0 %}v-bad{% else %}v-none{% endif %}">
+          {{ p.serve_err if p.serve_err > 0 else '·' }}
+        </td>
+        <td class="col-std {% if p.serve_ace > 0 %}v-good{% else %}v-none{% endif %}">
+          {{ p.serve_ace if p.serve_ace > 0 else '·' }}
+        </td>
+        <!-- RICEZIONE -->
+        <td class="col-std {% if p.rec_err > 0 %}v-bad{% else %}v-none{% endif %}">
+          {{ p.rec_err if p.rec_err > 0 else '·' }}
+        </td>
+        <td class="col-pct {% if p.rec_positivity is not none and p.rec_positivity >= 60 %}v-good{% elif p.rec_positivity is not none %}v-warn{% else %}v-none{% endif %}">
+          {{ p.rec_positivity|string + '%' if p.rec_positivity is not none else '·' }}
+        </td>
+        <td class="col-pct {% if p.rec_prf is not none and p.rec_prf >= 30 %}v-good{% elif p.rec_prf is not none %}v-warn{% else %}v-none{% endif %}">
+          {{ p.rec_prf|string + '%' if p.rec_prf is not none else '·' }}
+        </td>
+        <!-- ATTACCO -->
+        <td class="col-std {% if p.attack_err > 0 %}v-bad{% else %}v-none{% endif %}">
+          {{ p.attack_err if p.attack_err > 0 else '·' }}
+        </td>
+        <td class="col-std {% if p.attack_blk > 0 %}v-bad{% else %}v-none{% endif %}">
+          {{ p.attack_blk if p.attack_blk > 0 else '·' }}
+        </td>
+        <td class="col-std {% if p.attack_kill > 0 %}v-good{% else %}v-none{% endif %}">
+          {{ p.attack_kill if p.attack_kill > 0 else '·' }}
+        </td>
+        <td class="col-pct {% if p.att_efficiency is not none and p.att_efficiency >= 40 %}v-good{% elif p.att_efficiency is not none and p.att_efficiency < 0 %}v-bad{% elif p.att_efficiency is not none %}v-warn{% else %}v-none{% endif %}">
+          {{ p.att_efficiency|string + '%' if p.att_efficiency is not none else '·' }}
+        </td>
+        <!-- MURO -->
+        <td class="col-std {% if p.block_pt > 0 %}v-good{% else %}v-none{% endif %}">
+          {{ p.block_pt if p.block_pt > 0 else '·' }}
+        </td>
+        <!-- PUNTI -->
+        <td class="col-std {% if p.pts_lost > 0 %}v-bad{% else %}v-none{% endif %}">
+          {{ p.pts_lost if p.pts_lost > 0 else '·' }}
+        </td>
+        <td class="col-std {% if p.pts_scored > 0 %}v-good{% else %}v-none{% endif %}">
+          {{ p.pts_scored if p.pts_scored > 0 else '·' }}
+        </td>
+      </tr>
+      {% endfor %}
+
+      <!-- TOTALI SQUADRA -->
+      {% set t = team_totals %}
+      <tr class="row-total">
+        <td class="col-num">—</td>
+        <td class="col-name">TOTALI SQUADRA</td>
+        {% for s in all_sets %}
+        <td class="col-set">—</td>
+        {% endfor %}
+        <td class="col-tot">—</td>
+        <td class="col-std">{{ t.serve_err if t.serve_err > 0 else '·' }}</td>
+        <td class="col-std">{{ t.serve_ace if t.serve_ace > 0 else '·' }}</td>
+        <td class="col-std">{{ t.rec_err if t.rec_err > 0 else '·' }}</td>
+        <td class="col-pct">{{ t.rec_positivity|string + '%' if t.rec_positivity is not none else '·' }}</td>
+        <td class="col-pct">{{ t.rec_prf|string + '%' if t.rec_prf is not none else '·' }}</td>
+        <td class="col-std">{{ t.attack_err if t.attack_err > 0 else '·' }}</td>
+        <td class="col-std">{{ t.attack_blk if t.attack_blk > 0 else '·' }}</td>
+        <td class="col-std">{{ t.attack_kill if t.attack_kill > 0 else '·' }}</td>
+        <td class="col-pct">{{ t.att_efficiency|string + '%' if t.att_efficiency is not none else '·' }}</td>
+        <td class="col-std">{{ t.block_pt if t.block_pt > 0 else '·' }}</td>
+        <td class="col-std">{{ t.pts_lost if t.pts_lost > 0 else '·' }}</td>
+        <td class="col-std">{{ t.pts_scored if t.pts_scored > 0 else '·' }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── PER-SET BREAKDOWN ── -->
+  <div class="section-title">Dettaglio per Set</div>
+  <table class="set-table">
+    <thead>
+      <tr>
+        <th style="width:65px;text-align:left;padding-left:6px">Set</th>
+        <th style="width:55px">Punteggio</th>
+        <th style="width:28px">Ace</th>
+        <th style="width:32px">Err.Bat</th>
+        <th style="width:28px">Kill</th>
+        <th style="width:32px">Err.Att</th>
+        <th style="width:30px">Mur.Sub</th>
+        <th style="width:28px">Pt.Muro</th>
+        <th style="width:30px">Err.Ric</th>
+        <th style="width:30px">Pos%</th>
+        <th style="width:30px">Prf%</th>
+        <th style="width:35px">Err.Avv.</th>
+        <th style="width:32px">Punti</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for st in set_totals %}
+      {% set s = st.stats %}
+      {% set err_avv = st.state.score_us - s.serve_ace - s.attack_kill - s.block_pt if st.state.score_us is defined else 0 %}
+      <tr>
+        <td class="set-label">{{ st.number }}° Set</td>
+        <td style="font-weight:700">
+          {{ st.state.score_us }}–{{ st.state.score_them }}
+          {% if st.state.winner == 'us' %}<span style="color:#15803d"> ✓</span>{% endif %}
+        </td>
+        <td class="{% if s.serve_ace > 0 %}v-good{% else %}v-none{% endif %}">{{ s.serve_ace if s.serve_ace > 0 else '·' }}</td>
+        <td class="{% if s.serve_err > 0 %}v-bad{% else %}v-none{% endif %}">{{ s.serve_err if s.serve_err > 0 else '·' }}</td>
+        <td class="{% if s.attack_kill > 0 %}v-good{% else %}v-none{% endif %}">{{ s.attack_kill if s.attack_kill > 0 else '·' }}</td>
+        <td class="{% if s.attack_err > 0 %}v-bad{% else %}v-none{% endif %}">{{ s.attack_err if s.attack_err > 0 else '·' }}</td>
+        <td class="{% if s.attack_blk > 0 %}v-bad{% else %}v-none{% endif %}">{{ s.attack_blk if s.attack_blk > 0 else '·' }}</td>
+        <td class="{% if s.block_pt > 0 %}v-good{% else %}v-none{% endif %}">{{ s.block_pt if s.block_pt > 0 else '·' }}</td>
+        <td class="{% if s.rec_err > 0 %}v-bad{% else %}v-none{% endif %}">{{ s.rec_err if s.rec_err > 0 else '·' }}</td>
+        <td class="{% if s.rec_positivity is not none and s.rec_positivity >= 60 %}v-good{% elif s.rec_positivity is not none %}v-warn{% else %}v-none{% endif %}">
+          {{ s.rec_positivity|string + '%' if s.rec_positivity is not none else '·' }}
+        </td>
+        <td class="{% if s.rec_prf is not none and s.rec_prf >= 30 %}v-good{% elif s.rec_prf is not none %}v-warn{% else %}v-none{% endif %}">
+          {{ s.rec_prf|string + '%' if s.rec_prf is not none else '·' }}
+        </td>
+        <td class="{% if err_avv > 0 %}v-good{% else %}v-none{% endif %}">{{ err_avv if err_avv > 0 else '·' }}</td>
+        <td style="font-weight:700">{{ st.state.score_us }}</td>
+      </tr>
+      {% endfor %}
+      <!-- Totali -->
+      {% set t = team_totals %}
+      {% set tot_errori_avv = match.sets_us * 25 %}
+      <tr style="font-weight:800;background:#f1f5f9">
+        <td class="set-label" style="font-weight:800">TOTALE</td>
+        <td style="font-weight:800">{{ match.sets_us }}–{{ match.sets_them }}</td>
+        <td class="{% if t.serve_ace > 0 %}v-good{% else %}v-none{% endif %}">{{ t.serve_ace if t.serve_ace > 0 else '·' }}</td>
+        <td class="{% if t.serve_err > 0 %}v-bad{% else %}v-none{% endif %}">{{ t.serve_err if t.serve_err > 0 else '·' }}</td>
+        <td class="{% if t.attack_kill > 0 %}v-good{% else %}v-none{% endif %}">{{ t.attack_kill if t.attack_kill > 0 else '·' }}</td>
+        <td class="{% if t.attack_err > 0 %}v-bad{% else %}v-none{% endif %}">{{ t.attack_err if t.attack_err > 0 else '·' }}</td>
+        <td class="{% if t.attack_blk > 0 %}v-bad{% else %}v-none{% endif %}">{{ t.attack_blk if t.attack_blk > 0 else '·' }}</td>
+        <td class="{% if t.block_pt > 0 %}v-good{% else %}v-none{% endif %}">{{ t.block_pt if t.block_pt > 0 else '·' }}</td>
+        <td class="{% if t.rec_err > 0 %}v-bad{% else %}v-none{% endif %}">{{ t.rec_err if t.rec_err > 0 else '·' }}</td>
+        <td class="{% if t.rec_positivity is not none %}v-good{% else %}v-none{% endif %}">{{ t.rec_positivity|string + '%' if t.rec_positivity is not none else '·' }}</td>
+        <td class="{% if t.rec_prf is not none %}v-good{% else %}v-none{% endif %}">{{ t.rec_prf|string + '%' if t.rec_prf is not none else '·' }}</td>
+        <td>—</td>
+        <td style="font-weight:800">{{ t.pts_scored if t.pts_scored > 0 else '·' }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── FOOTER ── -->
+  <div class="sint-footer">
+    <span>⬡ VolleyStat{% if club.name %} · {{ club.name }}{% endif %} · {{ cat.name }}</span>
+    <span>Generato: {{ generated }}</span>
+  </div>
+
+</div><!-- /page -->
+</body>
+</html>

@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}VolleyStat — vs {{ match.opponent }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('calendar', cat_id=cat.id) }}" class="back-link">← Calendario</a>
+    <h1>vs {{ match.opponent }}</h1>
+  </div>
+  <div class="header-meta">
+    <span class="tag">{{ match.date[:10] }}</span>
+    <span class="badge {% if match.home %}badge-home{% else %}badge-away{% endif %}">
+      {% if match.home %}Casa{% else %}Trasferta{% endif %}
+    </span>
+    {% if match.competition %}<span class="badge badge-comp">{{ match.competition }}</span>{% endif %}
+  </div>
+</div>
+
+<!-- Scoreboard partita -->
+<section class="card scoreboard-card">
+  <div class="big-scoreboard">
+    <div class="team-side us-side">
+      <div class="team-label">NOI</div>
+      <div class="team-score">{{ match.sets_us }}</div>
+    </div>
+    <div class="scoreboard-divider">SET</div>
+    <div class="team-side them-side">
+      <div class="team-label">{{ match.opponent|upper }}</div>
+      <div class="team-score">{{ match.sets_them }}</div>
+    </div>
+  </div>
+
+  <!-- Set completati -->
+  {% if sets %}
+  <div class="sets-row">
+    {% for sn, sd, state in sets %}
+    <div class="set-chip {% if state and state.set_over %}{% if state.winner=='us' %}set-won{% else %}set-lost{% endif %}{% else %}set-active{% endif %}">
+      <span class="set-chip-label">Set {{ sn }}</span>
+      {% if state %}
+      <span class="set-chip-score">{{ state.score_us }}–{{ state.score_them }}</span>
+      {% endif %}
+      <a href="{{ url_for('set_view', cat_id=cat.id, match_id=match.id, set_num=sn) }}"
+         class="set-chip-link">{% if state and state.set_over %}[stats] {% else %}▶{% endif %}</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<!-- Avvio nuovo set -->
+{% set max_set = sets|length + 1 %}
+{% if match.status != 'completed' and max_set <= 5 %}
+<section class="card">
+  <div class="card-header">
+    <span class="card-icon">[pallavolo]</span>
+    <h2>Avvia Set {{ max_set }}</h2>
+  </div>
+
+  <form method="POST" action="{{ url_for('new_set', cat_id=cat.id, match_id=match.id) }}" class="new-set-form" id="newSetForm">
+
+    <div class="form-group">
+      <label>Chi serve per primo?</label>
+      <div class="radio-row">
+        <label class="radio-label">
+          <input type="radio" name="first_serve" value="us" checked> Noi
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="first_serve" value="them"> {{ match.opponent }}
+        </label>
+      </div>
+    </div>
+
+    <!-- Court builder -->
+    <div class="form-group form-group-full">
+      <label>Formazione Iniziale (trascina / seleziona in ordine di rotazione)</label>
+      <div class="court-builder">
+        <div class="court-grid" id="courtGrid">
+          {% for pos in range(1,7) %}
+          <div class="court-cell" id="cell{{ pos }}"
+               data-pos="{{ pos }}"
+               onclick="selectCell({{ pos }})">
+            <div class="pos-label">P{{ pos }}</div>
+            <div class="pos-player" id="posPlayer{{ pos }}">—</div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="court-legend">
+          <div class="legend-text">
+            <b>Schema campo:</b><br>
+            P4 · P3 · P2<br>
+            P5 · P6 · P1
+          </div>
+          <div class="legend-note">P1 = Primo battitore</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selezione giocatori -->
+    <div class="form-group form-group-full">
+      <label>Clicca posizione → poi seleziona giocatore</label>
+      <div class="player-selector" id="playerSelector">
+        {% for p in players %}
+        <button type="button"
+                class="player-btn {% if p.role=='L' %}libero-btn{% endif %}"
+                data-number="{{ p.number }}"
+                onclick="assignPlayer({{ p.number }}, '{{ p.name|e }}', '{{ p.role }}')">
+          <span class="btn-num">#{{ p.number }}</span>
+          <span class="btn-name">{{ p.name.split()[0] if p.name else '' }}</span>
+          <span class="btn-role">{{ p.role }}</span>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Palleggiatore (per spostamento)</label>
+      <select name="palleggiatore" class="input">
+        <option value="">— Non rilevare —</option>
+        {% for p in players %}
+        {% if p.role == 'S' %}
+        <option value="{{ p.number }}">#{{ p.number }} {{ p.name }}</option>
+        {% endif %}
+        {% endfor %}
+        {% for p in players %}
+        {% if p.role != 'S' and p.role != 'L' %}
+        <option value="{{ p.number }}">#{{ p.number }} {{ p.name }} ({{ p.role }})</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Libero (opzionale)</label>
+      <select name="libero" class="input">
+        <option value="">— Nessuno —</option>
+        {% for p in players %}
+        {% if p.role == 'L' %}
+        <option value="{{ p.number }}">#{{ p.number }} {{ p.name }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      <label class="radio-label" style="margin-top:8px;display:block">
+        <input type="checkbox" name="auto_libero" checked>
+        Giro automatico centrale-libero
+      </label>
+      <span class="legend-note">Il libero entra/esce da solo per il centrale (ruolo C) in seconda linea</span>
+    </div>
+
+    <input type="hidden" name="lineup" id="lineupInput">
+
+    <div class="form-group form-group-full">
+      <button type="button" onclick="submitLineup()" class="btn btn-accent btn-lg">
+        ▷ Avvia Set {{ max_set }}
+      </button>
+      <span id="lineupStatus" class="lineup-status"></span>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+{% if match.status == 'completed' %}
+<div class="completed-banner">
+  ✓ Partita completata —
+  <a href="{{ url_for('stats_view', cat_id=cat.id, match_id=match.id) }}" class="btn btn-accent">Statistiche Complete</a>
+  <a href="{{ url_for('esporta_ai', cat_id=cat.id, match_id=match.id) }}" class="btn btn-ai">Analisi AI</a>
+  <a href="{{ url_for('report_sintetico', cat_id=cat.id, match_id=match.id) }}" class="btn btn-accent" target="_blank">Scheda Sintetica</a>
+  <a href="{{ url_for('report_view', cat_id=cat.id, match_id=match.id) }}" class="btn" target="_blank">Report Completo</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const lineup = {};
+let selectedCell = null;
+
+function selectCell(pos) {
+  selectedCell = pos;
+  document.querySelectorAll('.court-cell').forEach(c => c.classList.remove('selected'));
+  document.getElementById('cell' + pos).classList.add('selected');
+}
+
+function assignPlayer(num, name, role) {
+  if (!selectedCell) {
+    alert('Prima clicca su una casella del campo (P1–P6)');
+    return;
+  }
+  // rimuovi eventuale assegnazione precedente dello stesso giocatore
+  for (let pos in lineup) {
+    if (lineup[pos].num === num && pos != selectedCell) {
+      delete lineup[pos];
+      document.getElementById('posPlayer' + pos).textContent = '—';
+      document.getElementById('cell' + pos).classList.remove('filled');
+    }
+  }
+  lineup[selectedCell] = { num, name, role };
+  document.getElementById('posPlayer' + selectedCell).innerHTML =
+    `<b>#${num}</b><br><small>${name.split(' ')[0]}</small>`;
+  document.getElementById('cell' + selectedCell).classList.add('filled');
+  selectedCell = null;
+  document.querySelectorAll('.court-cell').forEach(c => c.classList.remove('selected'));
+  updateStatus();
+}
+
+function updateStatus() {
+  const filled = Object.keys(lineup).length;
+  const el = document.getElementById('lineupStatus');
+  el.textContent = `${filled}/6 posizioni assegnate`;
+  el.className = 'lineup-status ' + (filled === 6 ? 'status-ok' : '');
+}
+
+function submitLineup() {
+  const keys = ['1','2','3','4','5','6'];
+  for (let k of keys) {
+    if (!lineup[k]) {
+      alert(`Posizione P${k} non assegnata!\nAssegna tutti e 6 i giocatori.`);
+      return;
+    }
+  }
+  const order = keys.map(k => lineup[k].num).join(',');
+  document.getElementById('lineupInput').value = order;
+  document.getElementById('newSetForm').submit();
+}
+</script>
+{% endblock %}

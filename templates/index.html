@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}VolleyStat — Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('home') }}" class="back-link">← Sodalizio</a>
+    <h1>{{ cat.name }}</h1>
+  </div>
+  <div class="header-meta">
+    {% if cat.season %}<span class="tag">{{ cat.season }}</span>{% endif %}
+    <a href="{{ url_for('report_stagione', cat_id=cat.id) }}" class="btn btn-accent" target="_blank">Report Stagione PDF</a>
+  </div>
+</div>
+
+<div class="grid-2">
+
+  <section class="card">
+    <div class="card-header">
+      <span class="card-icon">📅</span>
+      <h2>Prossime Partite</h2>
+      <a href="{{ url_for('calendar', cat_id=cat.id) }}" class="btn btn-sm">+ Aggiungi</a>
+    </div>
+    {% if upcoming %}
+      {% for m in upcoming %}
+      <div class="match-row">
+        <div class="match-date">{{ m.date[:10] }}{% if m.time %} {{ m.time }}{% endif %}</div>
+        <div class="match-info">
+          <span class="match-vs">vs {{ m.opponent }}</span>
+          <span class="badge {% if m.home %}badge-home{% else %}badge-away{% endif %}">
+            {% if m.home %}Casa{% else %}Trasferta{% endif %}
+          </span>
+          {% if m.competition %}<span class="badge badge-comp">{{ m.competition }}</span>{% endif %}
+        </div>
+        <a href="{{ url_for('match_view', cat_id=cat.id, match_id=m.id) }}" class="btn btn-sm btn-accent">
+          {% if m.status == 'ongoing' %}▶ Riprendi{% else %}▷ Inizia{% endif %}
+        </a>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty-msg">Nessuna partita in programma.<br>
+      <a href="{{ url_for('calendar', cat_id=cat.id) }}">Aggiungi dal calendario →</a></p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <span class="card-icon">🏆</span>
+      <h2>Risultati Recenti</h2>
+    </div>
+    {% if recent %}
+      {% for m in recent %}
+      <div class="match-row">
+        <div class="match-date">{{ m.date[:10] }}</div>
+        <div class="match-info">
+          <span class="match-vs">vs {{ m.opponent }}</span>
+          <span class="score-pill {% if m.sets_us > m.sets_them %}score-win{% else %}score-loss{% endif %}">
+            {{ m.sets_us }} — {{ m.sets_them }}
+          </span>
+        </div>
+        <a href="{{ url_for('stats_view', cat_id=cat.id, match_id=m.id) }}" class="btn btn-sm">Stats</a>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty-msg">Nessuna partita completata.</p>
+    {% endif %}
+  </section>
+
+</div>
+
+<section class="card card-commands">
+  <div class="card-header">
+    <span class="card-icon">⌨</span>
+    <h2>Comandi Rapidi — Riferimento</h2>
+  </div>
+  <div class="cmd-grid">
+    <div class="cmd-group">
+      <div class="cmd-group-title">SERVIZIO</div>
+      <div class="cmd-row"><code>S[n]</code><span>Ace — es. <kbd>S81</kbd></span></div>
+      <div class="cmd-row"><code>SE[n]</code><span>Errore — es. <kbd>SE81</kbd></span></div>
+    </div>
+    <div class="cmd-group">
+      <div class="cmd-group-title">ATTACCO</div>
+      <div class="cmd-row"><code>A[n]</code><span>Kill — es. <kbd>A10</kbd></span></div>
+      <div class="cmd-row"><code>AN[n]</code><span>In campo (cont.) — es. <kbd>AN10</kbd></span></div>
+      <div class="cmd-row"><code>AE[n]</code><span>Errore — es. <kbd>AE10</kbd></span></div>
+      <div class="cmd-row"><code>AB[n]</code><span>Murato (punto avv.) — es. <kbd>AB10</kbd></span></div>
+      <div class="cmd-row"><code>ABN[n]</code><span>Murato, palla in gioco — es. <kbd>ABN10</kbd></span></div>
+    </div>
+    <div class="cmd-group">
+      <div class="cmd-group-title">MURO</div>
+      <div class="cmd-row"><code>B[n]</code><span>Punto — es. <kbd>B7</kbd></span></div>
+      <div class="cmd-row"><code>BE[n]</code><span>Errore — es. <kbd>BE7</kbd></span></div>
+    </div>
+    <div class="cmd-group">
+      <div class="cmd-group-title">RICEZIONE</div>
+      <div class="cmd-row"><code>R+[n]</code><span>Permette attacco — <kbd>R+15</kbd></span></div>
+      <div class="cmd-row"><code>R-[n]</code><span>Non permette att. — <kbd>R-15</kbd></span></div>
+      <div class="cmd-row"><code>RE[n]</code><span>Ace subito — <kbd>RE15</kbd></span></div>
+    </div>
+    <div class="cmd-group">
+      <div class="cmd-group-title">DIFESA</div>
+      <div class="cmd-row"><code>D[n]</code><span>Positiva — es. <kbd>D5</kbd></span></div>
+      <div class="cmd-row"><code>DE[n]</code><span>Errore — es. <kbd>DE5</kbd></span></div>
+    </div>
+    <div class="cmd-group">
+      <div class="cmd-group-title">ALTRO</div>
+      <div class="cmd-row"><code>P</code><span>Punto (err. avv.)</span></div>
+      <div class="cmd-row"><code>PE</code><span>Punto avversario</span></div>
+      <div class="cmd-row"><code>SUB[out]/[in]</code><span>Sostituzione ufficiale</span></div>
+      <div class="cmd-row"><code>LIB[lib]/[cen]</code><span>Cambio libero (non conta come sost.)</span></div>
+      <div class="cmd-row"><code>T / TO</code><span>Timeout noi / avv.</span></div>
+      <div class="cmd-row"><code>UNDO</code><span>Annulla ultimo</span></div>
+    </div>
+  </div>
+</section>
+{% endblock %}

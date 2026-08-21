@@ -1,0 +1,134 @@
+{# VolleyStat — Macro condivise per i report PDF #}
+
+{% macro pct_td(val, good=50, mid=25) %}
+  {% if val is none or val is undefined %}
+    <td class="muted">—</td>
+  {% elif val >= good %}<td class="pct-good">{{ val }}%</td>
+  {% elif val >= mid %}<td class="pct-mid">{{ val }}%</td>
+  {% elif val >= 0   %}<td>{{ val }}%</td>
+  {% else             %}<td class="pct-bad">{{ val }}%</td>
+  {% endif %}
+{% endmacro %}
+
+{% macro table_ricezione(stats_dict, p_by_num, show_name=True) %}
+<table>
+  <thead>
+    <tr>
+      {% if show_name %}<th class="left">N°</th><th class="left">Atleta</th>{% endif %}
+      <th>R+</th><th>R–</th><th>Ace sub.</th><th>Tot.</th>
+      <th>Positività%</th><th>Efficienza%</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for pnum, s in stats_dict.items()|sort(attribute='0') %}
+    {% set info = p_by_num.get(pnum|int) %}
+    <tr>
+      {% if show_name %}
+      <td class="left"><span class="num-badge">{{ pnum }}</span></td>
+      <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+      {% endif %}
+      <td class="{{ 'good' if s.rec_pos > 0 }}">{{ s.rec_pos }}</td>
+      <td>{{ s.rec_neg }}</td>
+      <td class="{{ 'bad' if s.rec_err > 0 }}">{{ s.rec_err }}</td>
+      <td class="muted">{{ s.rec_total }}</td>
+      {{ pct_td(s.rec_positivity, 60, 40) }}
+      {{ pct_td(s.rec_efficiency, 30, 10) }}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="formula-note">
+  Positività = (R+ + R–) ÷ Tot × 100 &nbsp;·&nbsp; Efficienza = (R+ + R– – Ace sub.) ÷ Tot × 100
+  &nbsp;·&nbsp; Solo RE è negativo
+</p>
+{% endmacro %}
+
+{% macro table_attacco(stats_dict, p_by_num, show_name=True) %}
+<table>
+  <thead>
+    <tr>
+      {% if show_name %}<th class="left">N°</th><th class="left">Atleta</th>{% endif %}
+      <th>Kill</th><th>Cont.</th><th>Errore</th><th>Murato</th><th>Tot.</th>
+      <th>Positività%</th><th>Efficienza%</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for pnum, s in stats_dict.items()|sort(attribute='0') %}
+    {% set info = p_by_num.get(pnum|int) %}
+    <tr>
+      {% if show_name %}
+      <td class="left"><span class="num-badge">{{ pnum }}</span></td>
+      <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+      {% endif %}
+      <td class="{{ 'good' if s.attack_kill }}">{{ s.attack_kill }}</td>
+      <td>{{ s.attack_cont }}</td>
+      <td class="{{ 'bad' if s.attack_err }}">{{ s.attack_err }}</td>
+      <td class="{{ 'bad' if s.attack_blk }}">{{ s.attack_blk }}</td>
+      <td class="muted">{{ s.att_total }}</td>
+      {{ pct_td(s.att_positivity, 50, 30) }}
+      {{ pct_td(s.att_efficiency, 25, 0) }}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="formula-note">
+  Positività = (Kill + Cont.) ÷ Tot × 100 &nbsp;·&nbsp; Efficienza = (Kill + Cont. – Err. – Mur.) ÷ Tot × 100
+</p>
+{% endmacro %}
+
+{% macro table_altri(stats_dict, p_by_num) %}
+<table>
+  <thead>
+    <tr>
+      <th class="left">N°</th><th class="left">Atleta</th><th>Ruolo</th>
+      <th>Ace</th><th>Err.S</th>
+      <th>Muro</th><th>Err.M</th>
+      <th>Dif.</th><th>Err.D</th>
+      <th>+Pt</th><th>–Pt</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for pnum, s in stats_dict.items()|sort(attribute='0') %}
+    {% set info = p_by_num.get(pnum|int) %}
+    <tr>
+      <td class="left"><span class="num-badge">{{ pnum }}</span></td>
+      <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+      <td>{{ info.role if info else '–' }}</td>
+      <td class="{{ 'good' if s.serve_ace }}">{{ s.serve_ace }}</td>
+      <td class="{{ 'bad'  if s.serve_err }}">{{ s.serve_err }}</td>
+      <td class="{{ 'good' if s.block_pt  }}">{{ s.block_pt }}</td>
+      <td class="{{ 'bad'  if s.block_err }}">{{ s.block_err }}</td>
+      <td>{{ s.def_pos }}</td>
+      <td class="{{ 'bad' if s.def_err }}">{{ s.def_err }}</td>
+      <td class="good"><b>{{ s.pts_scored }}</b></td>
+      <td class="bad"><b>{{ s.pts_lost }}</b></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{% macro svg_bars(items, color='#1a5c2e', height=70) %}
+{# items = list of (label, value) #}
+{% set max_v = items|map(attribute=1)|max|default(1) %}
+{% set bw = 28 %}
+{% set gap = 8 %}
+{% set tw = items|length * (bw + gap) + 10 %}
+<svg class="bar-chart" viewBox="0 0 {{ tw }} {{ height + 28 }}" height="{{ height + 28 }}">
+  {% for lbl, val in items %}
+  {% set x = loop.index0 * (bw + gap) + 5 %}
+  {% set bh = (val / max_v * height)|int if max_v > 0 else 0 %}
+  {% set y = height - bh %}
+  <rect x="{{ x }}" y="{{ y }}" width="{{ bw }}" height="{{ bh }}"
+        fill="{{ color }}" opacity="0.85" rx="2"/>
+  {% if val > 0 %}
+  <text x="{{ x + bw/2 }}" y="{{ y - 2 }}" text-anchor="middle"
+        font-size="7" font-weight="700" fill="{{ color }}">{{ val }}</text>
+  {% endif %}
+  <text x="{{ x + bw/2 }}" y="{{ height + 11 }}" text-anchor="middle"
+        font-size="7.5" fill="#333">{{ lbl }}</text>
+  {% endfor %}
+  <line x1="5" y1="{{ height }}" x2="{{ tw - 5 }}" y2="{{ height }}"
+        stroke="#ccc" stroke-width="0.5"/>
+</svg>
+{% endmacro %}

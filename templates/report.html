@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Report Partita — vs {{ match.opponent }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='report_base.css') }}">
+<style>
+  :root {
+    --accent:        {{ cat.color }};
+    --accent2:       {{ cat.color }};
+    --accent-light:  {{ cat.color }}1a;
+    --accent-xlight: {{ cat.color }}0a;
+  }
+  .num-badge { background: {{ cat.color }}; }
+</style>
+</head>
+<body>
+{% from 'macros_report.html' import pct_td, table_ricezione, table_attacco, table_altri, svg_bars %}
+
+<div class="print-bar">
+  <span class="rpt-brand">⬡ VolleyStat</span>
+  <button class="btn-print" onclick="window.print()">🖨 Stampa / Salva PDF</button>
+  <button class="btn-back" onclick="window.history.back()">← Torna</button>
+  <span style="margin-left:auto;font-size:11px;opacity:.5">Ctrl+P → Salva come PDF</span>
+</div>
+<div class="print-bar-spacer"></div>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="rpt-header">
+    <div>
+      <div class="rpt-title-main">⬡ VolleyStat{% if club.name %} — {{ club.name }}{% endif %}</div>
+      <div class="rpt-title-sub">
+        Report Partita · {{ cat.name }}{% if cat.season %} · Stagione {{ cat.season }}{% endif %}
+      </div>
+    </div>
+    <div class="rpt-meta">
+      Data: <b>{{ match.date[:10] }}</b>{% if match.time %} · {{ match.time }}{% endif %}<br>
+      {% if match.location %}{{ match.location }}<br>{% endif %}
+      {% if match.competition %}{{ match.competition }}<br>{% endif %}
+      Generato: {{ generated }}
+    </div>
+  </div>
+
+  <!-- Risultato -->
+  <div class="result-box">
+    <div style="text-align:center;min-width:70px">
+      <div style="font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--accent);margin-bottom:2px">NOI</div>
+      <div class="rb-score">{{ match.sets_us }}</div>
+    </div>
+    <div style="text-align:center;flex:1">
+      <div style="font-size:14px;font-weight:800;letter-spacing:.5px;color:var(--text)">vs {{ match.opponent|upper }}</div>
+      {% if match.competition %}<div style="font-size:9px;color:var(--muted);margin-top:2px">{{ match.competition }}</div>{% endif %}
+      <div class="rb-sets">
+        {% for s in sets %}
+        <div class="rb-set {% if s.state.winner=='us' %}won{% endif %}">
+          Set {{ s.number }} &nbsp;{{ s.state.score_us }}–{{ s.state.score_them }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div style="text-align:center;min-width:70px">
+      <div style="font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:2px">{{ match.opponent|upper|truncate(10,true,'…') }}</div>
+      <div class="rb-score" style="color:var(--muted)">{{ match.sets_them }}</div>
+    </div>
+  </div>
+
+  <!-- ANDAMENTO DELLA PARTITA -->
+  {% if score_timeline %}
+  <h2>📈 Andamento della Partita</h2>
+  {% for tl in score_timeline %}
+  {% if tl.svg and tl.total_pts > 0 %}
+  {% set sv = tl.svg %}
+  {% set fin = tl.points[-1] %}
+  <div class="no-break" style="margin-bottom:14px">
+    <h3 style="margin-bottom:4px">
+      Set {{ tl.set_number }}
+      <span style="font-weight:400;font-size:11px">
+        · {{ fin.us }}–{{ fin.them }}
+        {% if tl.winner=='us' %}<span style="color:#1a5c2e"> · VINTO</span>
+        {% elif tl.winner %}<span style="color:#c0392b"> · PERSO</span>{% endif %}
+      </span>
+    </h3>
+
+    <!-- score diff SVG chart -->
+    <svg viewBox="0 0 {{ sv.W }} {{ sv.H }}" height="{{ sv.H }}"
+         xmlns="http://www.w3.org/2000/svg"
+         style="width:100%;display:block;border:1px solid #e8e8e8;border-radius:3px;background:#fafafa">
+
+      <!-- Subtle background bands: green above, red below -->
+      <rect x="{{ sv.MX }}" y="{{ sv.MY }}"
+            width="{{ sv.W - 2*sv.MX }}" height="{{ sv.zero_y - sv.MY }}"
+            fill="#1a5c2e" opacity="0.04"/>
+      <rect x="{{ sv.MX }}" y="{{ sv.zero_y }}"
+            width="{{ sv.W - 2*sv.MX }}" height="{{ sv.H - sv.MY - sv.zero_y }}"
+            fill="#c0392b" opacity="0.04"/>
+
+      <!-- Filled areas -->
+      {% for fill in sv.above_fills %}
+      <polygon points="{{ fill }}" fill="#1a5c2e" opacity="0.28"/>
+      {% endfor %}
+      {% for fill in sv.below_fills %}
+      <polygon points="{{ fill }}" fill="#c0392b" opacity="0.22"/>
+      {% endfor %}
+
+      <!-- Timeout markers (dashed vertical lines) -->
+      {% for km in tl.key_moments %}
+      <line x1="{{ km.x }}" y1="{{ sv.MY }}" x2="{{ km.x }}" y2="{{ sv.H - sv.MY }}"
+            stroke="{{ '#1a5c2e' if km.side=='us' else '#c0392b' }}"
+            stroke-width="0.8" stroke-dasharray="3,3" opacity="0.65"/>
+      <text x="{{ km.x }}" y="{{ sv.MY + 8 }}" text-anchor="middle"
+            font-size="6.5"
+            fill="{{ '#1a5c2e' if km.side=='us' else '#c0392b' }}"
+            font-weight="700" opacity="0.9">{{ km.label }}</text>
+      {% endfor %}
+
+      <!-- Zero line -->
+      <line x1="{{ sv.MX }}" y1="{{ sv.zero_y }}"
+            x2="{{ sv.W - sv.MX }}" y2="{{ sv.zero_y }}"
+            stroke="#aaa" stroke-width="0.7"/>
+
+      <!-- Score diff polyline -->
+      <filter id="ln-shadow"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity=".18"/></filter>
+      <polyline points="{{ sv.line_pts }}" fill="none"
+                stroke="#1e293b" stroke-width="2"
+                stroke-linejoin="round" stroke-linecap="round"
+                filter="url(#ln-shadow)"/>
+
+      <!-- X axis ticks and labels -->
+      {% for lbl in sv.x_labels %}
+      <line x1="{{ lbl.x }}" y1="{{ sv.zero_y - 2 }}"
+            x2="{{ lbl.x }}" y2="{{ sv.zero_y + 2 }}"
+            stroke="#ccc" stroke-width="0.5"/>
+      <text x="{{ lbl.x }}" y="{{ sv.H - 1 }}" text-anchor="middle"
+            font-size="6.5" fill="#888">{{ lbl.n }}</text>
+      {% endfor %}
+
+      <!-- Y axis labels -->
+      <text x="2" y="{{ sv.MY + 8 }}"
+            font-size="7" fill="#1a5c2e" font-weight="700">+{{ sv.max_abs }}</text>
+      <text x="2" y="{{ sv.H - sv.MY + 1 }}"
+            font-size="7" fill="#c0392b" font-weight="700">-{{ sv.max_abs }}</text>
+      <text x="2" y="{{ sv.zero_y + 3 }}"
+            font-size="7" fill="#999">0</text>
+    </svg>
+
+    <!-- Phase partials + max runs -->
+    <div style="display:flex;gap:8px;margin-top:5px;flex-wrap:wrap">
+
+      {% if tl.phases %}
+      <div style="flex:1;min-width:160px">
+        <table style="width:100%;border-collapse:collapse;font-size:8px">
+          <thead>
+            <tr>
+              <th style="background:#444;color:#fff;padding:2px 5px;text-align:left;font-size:7.5px">Parziale per fase</th>
+              <th style="background:#444;color:#fff;padding:2px 5px;text-align:center;font-size:7.5px">Noi</th>
+              <th style="background:#444;color:#fff;padding:2px 5px;text-align:center;font-size:7.5px">Avv.</th>
+              <th style="background:#444;color:#fff;padding:2px 5px;text-align:center;font-size:7.5px">Saldo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ph_n, ph in tl.phases.items() %}
+            {% set sal = ph.us - ph.them %}
+            {% set bg = '#e8f5ee' if sal > 0 else ('#fdecea' if sal < 0 else '#f7f7f7') %}
+            <tr style="background:{{ bg }}">
+              <td style="padding:2px 5px;font-weight:600">F{{ ph_n }} · pt {{ ph.label }}</td>
+              <td style="padding:2px 5px;text-align:center;font-weight:700;color:#1a5c2e">{{ ph.us }}</td>
+              <td style="padding:2px 5px;text-align:center;color:#c0392b">{{ ph.them }}</td>
+              <td style="padding:2px 5px;text-align:center;font-weight:900;
+                         color:{{ '#1a5c2e' if sal > 0 else ('#c0392b' if sal < 0 else '#555') }}">
+                {{ '+' if sal > 0 else '' }}{{ sal }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      <div style="flex:1;min-width:160px">
+        <table style="width:100%;border-collapse:collapse;font-size:8px">
+          <thead>
+            <tr>
+              <th colspan="2" style="background:#444;color:#fff;padding:2px 5px;text-align:left;font-size:7.5px">Serie punti consecutive (max)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if tl.max_run_us > 0 %}
+            <tr style="background:#e8f5ee">
+              <td style="padding:2px 5px">Nostra</td>
+              <td style="padding:2px 5px;font-weight:700;color:#1a5c2e">
+                {{ tl.max_run_us }} pt
+                {% if tl.max_run_us_at %}
+                <span style="font-weight:400;color:#555;font-size:7.5px">
+                  (parte dal {{ tl.max_run_us_at[0] }}-{{ tl.max_run_us_at[1] }})
+                </span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endif %}
+            {% if tl.max_run_them > 0 %}
+            <tr style="background:#fdecea">
+              <td style="padding:2px 5px">Avversario</td>
+              <td style="padding:2px 5px;font-weight:700;color:#c0392b">
+                {{ tl.max_run_them }} pt
+                {% if tl.max_run_them_at %}
+                <span style="font-weight:400;color:#555;font-size:7.5px">
+                  (parte dal {{ tl.max_run_them_at[0] }}-{{ tl.max_run_them_at[1] }})
+                </span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endif %}
+            {% if tl.max_run_us == 0 and tl.max_run_them == 0 %}
+            <tr>
+              <td colspan="2" style="padding:2px 5px;color:#999">Nessuna serie registrata</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+    {% if tl.key_moments %}
+    <p class="formula-note" style="margin-top:3px">
+      {% set km_us   = tl.key_moments|selectattr('side','equalto','us')|list %}
+      {% set km_them = tl.key_moments|selectattr('side','equalto','them')|list %}
+      Linee tratteggiate:
+      {% if km_us %}<span style="color:#1a5c2e">T=timeout noi</span>{% endif %}
+      {% if km_us and km_them %} · {% endif %}
+      {% if km_them %}<span style="color:#c0392b">TO=timeout avversario</span>{% endif %}
+    </p>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+
+  <!-- Statistiche totali -->
+  {% if total_stats %}
+  <h2>Statistiche Totali Partita</h2>
+
+  <!-- MINUTI GIOCATI -->
+  <!-- CONTINUITÀ DEL GIOCO -->
+  {% if continuity_stats and continuity_stats.team.rpos > 0 %}
+  {% set ct = continuity_stats.team %}
+  <h3>🔗 Continuità del Gioco — Cambio Palla</h3>
+
+  <table class="kpi-card" style="width:100%;font-size:10px">
+    <tr>
+      {% set cv_col = '#1a5c2e' if ct.conv_pct and ct.conv_pct>=30 else '#c0392b' if ct.conv_pct and ct.conv_pct<20 else '#b7770d' %}
+      {% set co_col = '#1a5c2e' if ct.cont_pct and ct.cont_pct>=70 else '#c0392b' if ct.cont_pct and ct.cont_pct<50 else '#b7770d' %}
+      {% set di_col = '#1a5c2e' if ct.disp_pct and ct.disp_pct<=15 else '#c0392b' if ct.disp_pct and ct.disp_pct>25 else '#b7770d' %}
+      <td style="background:#f7f7f7;border:1px solid #ccc;padding:6px 8px;text-align:center;width:25%">
+        <div style="font-size:22px;font-weight:900;color:{{ cv_col }}">{{ ct.conv_pct|string+'%' if ct.conv_pct is not none else '—' }}</div>
+        <div style="font-size:8px;font-weight:700;color:#555;text-transform:uppercase">Conversione</div>
+        <div style="font-size:8px;color:#777">Kill/R+ · Ref ≥30%</div>
+      </td>
+      <td style="background:#f7f7f7;border:1px solid #ccc;padding:6px 8px;text-align:center;width:25%">
+        <div style="font-size:22px;font-weight:900;color:{{ co_col }}">{{ ct.cont_pct|string+'%' if ct.cont_pct is not none else '—' }}</div>
+        <div style="font-size:8px;font-weight:700;color:#555;text-transform:uppercase">Continuità</div>
+        <div style="font-size:8px;color:#777">(Kill+Cont)/R+ · Ref ≥70%</div>
+      </td>
+      <td style="background:#f7f7f7;border:1px solid #ccc;padding:6px 8px;text-align:center;width:25%">
+        <div style="font-size:22px;font-weight:900;color:{{ di_col }}">{{ ct.disp_pct|string+'%' if ct.disp_pct is not none else '—' }}</div>
+        <div style="font-size:8px;font-weight:700;color:#555;text-transform:uppercase">Dispersione</div>
+        <div style="font-size:8px;color:#777">Err/R+ · Preoc. >20%</div>
+      </td>
+      <td style="background:#f7f7f7;border:1px solid #ccc;padding:6px 8px;text-align:center;width:25%">
+        <div style="font-size:22px;font-weight:900;color:#333">{{ ct.rpos }}</div>
+        <div style="font-size:8px;font-weight:700;color:#555;text-transform:uppercase">R+ totali</div>
+        <div style="font-size:8px;color:#777">{{ ct.kills }}K · {{ ct.cont }}C · {{ ct.err }}E</div>
+      </td>
+    </tr>
+  </table>
+
+  {% if continuity_stats.by_receiver or continuity_stats.by_attacker %}
+  <table style="width:100%;border-collapse:collapse;font-size:8px;margin-bottom:4px">
+    <thead>
+      <tr>
+        <th style="background:#555;color:#fff;padding:3px 5px;text-align:left">Ruolo</th>
+        <th style="background:#555;color:#fff;padding:3px 5px;text-align:left">N°</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">R+/Alz</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Kill</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Cont</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Err</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Conv%</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Cont%</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Disp%</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set ri = namespace(n=0) %}
+      {% for pnum, d in continuity_stats.by_receiver.items()|sort(attribute='1.rpos',reverse=True) %}
+      {% if d.rpos >= 2 %}
+      {% set info = p_by_num.get(pnum|int) %}
+      {% set ri.n = ri.n + 1 %}
+      {% set cv_c = '#1a5c2e' if d.conv_pct and d.conv_pct>=30 else '#c0392b' if d.conv_pct and d.conv_pct<20 else '#555' %}
+      {% set di_c = '#c0392b' if d.disp_pct and d.disp_pct>25 else '#1a5c2e' if d.disp_pct and d.disp_pct<=15 else '#555' %}
+      <tr style="background:{{ '#f7f7f7' if ri.n%2==0 else '#fff' }}">
+        <td style="padding:2px 5px;color:#777;font-style:italic">Ric.</td>
+        <td style="padding:2px 5px;font-weight:700">
+          <span style="background:#1a5c2e;color:#fff;border-radius:2px;padding:0 4px;font-size:7.5px">{{ pnum }}</span>
+          {{ info.name.split()[0] if info else '' }}
+        </td>
+        <td style="padding:2px 5px;text-align:center;font-weight:700">{{ d.rpos }}</td>
+        <td style="padding:2px 5px;text-align:center;color:{{ '#1a5c2e' if d.kills else '#333' }}">{{ d.kills }}</td>
+        <td style="padding:2px 5px;text-align:center">{{ d.cont }}</td>
+        <td style="padding:2px 5px;text-align:center;color:{{ '#c0392b' if d.err else '#333' }}">{{ d.err }}</td>
+        <td style="padding:2px 5px;text-align:center;font-weight:700;color:{{ cv_c }}">{{ d.conv_pct|string+'%' if d.conv_pct is not none else '—' }}</td>
+        <td style="padding:2px 5px;text-align:center">{{ d.cont_pct|string+'%' if d.cont_pct is not none else '—' }}</td>
+        <td style="padding:2px 5px;text-align:center;font-weight:700;color:{{ di_c }}">{{ d.disp_pct|string+'%' if d.disp_pct is not none else '—' }}</td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+      {% for pnum, d in continuity_stats.by_attacker.items()|sort(attribute='1.rpos_received',reverse=True) %}
+      {% if d.rpos_received >= 2 %}
+      {% set info = p_by_num.get(pnum|int) %}
+      {% set ri.n = ri.n + 1 %}
+      {% set cv_c = '#1a5c2e' if d.conv_pct and d.conv_pct>=30 else '#c0392b' if d.conv_pct and d.conv_pct<20 else '#555' %}
+      {% set di_c = '#c0392b' if d.disp_pct and d.disp_pct>25 else '#1a5c2e' if d.disp_pct and d.disp_pct<=15 else '#555' %}
+      <tr style="background:{{ '#eef7f1' if ri.n%2==0 else '#f5fff9' }}">
+        <td style="padding:2px 5px;color:#777;font-style:italic">Att.</td>
+        <td style="padding:2px 5px;font-weight:700">
+          <span style="background:#1a5c2e;color:#fff;border-radius:2px;padding:0 4px;font-size:7.5px">{{ pnum }}</span>
+          {{ info.name.split()[0] if info else '' }}
+        </td>
+        <td style="padding:2px 5px;text-align:center;font-weight:700">{{ d.rpos_received }}</td>
+        <td style="padding:2px 5px;text-align:center;color:{{ '#1a5c2e' if d.kills else '#333' }}">{{ d.kills }}</td>
+        <td style="padding:2px 5px;text-align:center">{{ d.cont }}</td>
+        <td style="padding:2px 5px;text-align:center;color:{{ '#c0392b' if d.err else '#333' }}">{{ d.err }}</td>
+        <td style="padding:2px 5px;text-align:center;font-weight:700;color:{{ cv_c }}">{{ d.conv_pct|string+'%' if d.conv_pct is not none else '—' }}</td>
+        <td style="padding:2px 5px;text-align:center">—</td>
+        <td style="padding:2px 5px;text-align:center;font-weight:700;color:{{ di_c }}">{{ d.disp_pct|string+'%' if d.disp_pct is not none else '—' }}</td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <p class="formula-note">
+    Conversione=Kill/R+×100 (≥30% buono) &nbsp;·&nbsp;
+    Continuità=(Kill+Cont)/R+×100 (≥70% buono) &nbsp;·&nbsp;
+    Dispersione=Err/R+×100 (&gt;20% preoccupante)
+  </p>
+  {% endif %}
+
+  <!-- ANALISI PER ROTAZIONE -->
+  {% if rotation_stats and rotation_stats.rotations %}
+  {% set rs = rotation_stats %}
+  {% set sm = rs.summary %}
+  <h3>🔄 Analisi per Rotazione</h3>
+
+  <!-- KPI side-out e break -->
+  <table class="kpi-card" style="width:100%;font-size:10px">
+    <tr>
+      {% set so_col = '#1a5c2e' if sm.so_pct and sm.so_pct >= 55 else '#c0392b' if sm.so_pct and sm.so_pct < 45 else '#b7770d' %}
+      {% set brk_col = '#1a5c2e' if sm.brk_pct and sm.brk_pct >= 35 else '#c0392b' if sm.brk_pct and sm.brk_pct < 25 else '#b7770d' %}
+      <td style="background:#f7f7f7;border:1px solid #ccc;padding:6px 10px;text-align:center;width:25%">
+        <div style="font-size:22px;font-weight:900;color:{{ so_col }}">
+          {{ sm.so_pct|string+'%' if sm.so_pct is not none else '—' }}
+        </div>
+        <div style="font-size:8px;font-weight:700;color:#555;text-transform:uppercase">Side-out %</div>
+        <div style="font-size:8px;color:#777">{{ sm.so_won }}/{{ sm.so_tot }} · Ref ≥55%</div>
+      </td>
+      <td style="background:#f7f7f7;border:1px solid #ccc;padding:6px 10px;text-align:center;width:25%">
+        <div style="font-size:22px;font-weight:900;color:{{ brk_col }}">
+          {{ sm.brk_pct|string+'%' if sm.brk_pct is not none else '—' }}
+        </div>
+        <div style="font-size:8px;font-weight:700;color:#555;text-transform:uppercase">Break Point %</div>
+        <div style="font-size:8px;color:#777">{{ sm.brk_won }}/{{ sm.brk_tot }} · Ref ≥35%</div>
+      </td>
+      {% if sm.best_rot %}
+      <td style="background:#e8f5ee;border:1px solid #1a5c2e;padding:6px 10px;text-align:center;width:25%">
+        <div style="font-size:22px;font-weight:900;color:#1a5c2e">{{ rs.rot_short[sm.best_rot] }}</div>
+        <div style="font-size:8px;font-weight:700;color:#1a5c2e;text-transform:uppercase">★ Rotazione Migliore</div>
+        <div style="font-size:8px;color:#555">Saldo {{ '+' if rs.rotations[sm.best_rot].saldo >= 0 else '' }}{{ rs.rotations[sm.best_rot].saldo }}</div>
+      </td>
+      {% endif %}
+      {% if sm.worst_rot %}
+      <td style="background:#fdecea;border:1px solid #c0392b;padding:6px 10px;text-align:center;width:25%">
+        <div style="font-size:22px;font-weight:900;color:#c0392b">{{ rs.rot_short[sm.worst_rot] }}</div>
+        <div style="font-size:8px;font-weight:700;color:#c0392b;text-transform:uppercase">⚠ Rotazione Critica</div>
+        <div style="font-size:8px;color:#555">Saldo {{ rs.rotations[sm.worst_rot].saldo }}</div>
+      </td>
+      {% endif %}
+    </tr>
+  </table>
+
+  <!-- Tabella dettaglio -->
+  <table style="width:100%;border-collapse:collapse;font-size:8.5px;margin-bottom:4px">
+    <thead>
+      <tr>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px;text-align:left">Rotazione</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">+Pt</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">–Pt</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Saldo</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">SO vinti</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">SO tot.</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">SO%</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Brk vinti</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Brk tot.</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Brk%</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for slot in rs.rot_order %}
+      {% set r = rs.rotations[slot] %}
+      {% set tot = r.pts_scored + r.pts_lost %}
+      {% if tot > 0 %}
+      {% set is_best  = slot == sm.best_rot %}
+      {% set is_worst = slot == sm.worst_rot %}
+      {% set row_bg = '#e8f5ee' if is_best else ('#fdecea' if is_worst else ('#f7f7f7' if slot%2==0 else '#fff')) %}
+      {% set so_col = '#1a5c2e' if r.so_pct and r.so_pct >= 55 else '#c0392b' if r.so_pct and r.so_pct < 45 else '#b7770d' %}
+      {% set brk_col = '#1a5c2e' if r.brk_pct and r.brk_pct >= 35 else '#c0392b' if r.brk_pct and r.brk_pct < 25 else '#b7770d' %}
+      <tr style="background:{{ row_bg }}">
+        <td style="padding:3px 5px;font-weight:700">
+          <span style="background:{{ '#1a5c2e' if is_best else ('#c0392b' if is_worst else '#555') }};
+                color:#fff;border-radius:2px;padding:0 4px;font-size:8px;margin-right:4px">{{ rs.rot_short[slot] }}</span>
+          {{ rs.rot_labels[slot] }}
+          {% if is_best %} ★{% endif %}{% if is_worst %} ⚠{% endif %}
+        </td>
+        <td style="padding:3px 5px;text-align:center;color:#1a5c2e;font-weight:700">{{ r.pts_scored }}</td>
+        <td style="padding:3px 5px;text-align:center;color:#c0392b">{{ r.pts_lost }}</td>
+        <td style="padding:3px 5px;text-align:center;font-weight:900;
+                   color:{{ '#1a5c2e' if r.saldo > 0 else ('#c0392b' if r.saldo < 0 else '#555') }}">
+          {{ '+' if r.saldo > 0 else '' }}{{ r.saldo }}
+        </td>
+        <td style="padding:3px 5px;text-align:center">{{ r.side_out_won }}</td>
+        <td style="padding:3px 5px;text-align:center;color:#777">{{ r.side_out_tot }}</td>
+        <td style="padding:3px 5px;text-align:center;font-weight:700;color:{{ so_col }}">
+          {{ r.so_pct|string+'%' if r.so_pct is not none else '—' }}
+        </td>
+        <td style="padding:3px 5px;text-align:center">{{ r.break_won }}</td>
+        <td style="padding:3px 5px;text-align:center;color:#777">{{ r.break_tot }}</td>
+        <td style="padding:3px 5px;text-align:center;font-weight:700;color:{{ brk_col }}">
+          {{ r.brk_pct|string+'%' if r.brk_pct is not none else '—' }}
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Grafico saldo a barre -->
+  {% set max_abs = [rs.rotations.values()|map(attribute='saldo')|map('abs')|max|default(1), 1]|max %}
+  <svg viewBox="0 0 {{ (W-2*MARGIN)|int if W else 500 }} 60" height="52"
+       xmlns="http://www.w3.org/2000/svg" style="width:100%;margin-bottom:4px">
+    {% set bar_w = 45 %}{% set gap = 8 %}{% set h = 22 %}{% set mid_y = 30 %}
+    {% set active_slots = rs.rotations.items()|selectattr('1.pts_scored')|list + rs.rotations.items()|selectattr('1.pts_lost')|list %}
+    {% for slot in rs.rot_order %}
+    {% set r = rs.rotations[slot] %}
+    {% if r.pts_scored + r.pts_lost > 0 %}
+    {% set x = loop.index0 * (bar_w+gap) + 5 %}
+    {% set saldo = r.saldo %}
+    {% set bh = ([saldo|abs, max_abs]|min / max_abs * h)|int %}
+    {% if saldo >= 0 %}
+    <rect x="{{ x }}" y="{{ mid_y - bh }}" width="{{ bar_w }}" height="{{ bh }}"
+          fill="#1a5c2e" opacity="0.85" rx="2"/>
+    {% else %}
+    <rect x="{{ x }}" y="{{ mid_y }}" width="{{ bar_w }}" height="{{ bh }}"
+          fill="#c0392b" opacity="0.75" rx="2"/>
+    {% endif %}
+    <text x="{{ x + bar_w/2 }}" y="{{ mid_y - bh - 2 if saldo >= 0 else mid_y + bh + 8 }}"
+          text-anchor="middle" font-size="8" font-weight="700"
+          fill="{{ '#1a5c2e' if saldo >= 0 else '#c0392b' }}">
+      {{ '+' if saldo > 0 else '' }}{{ saldo }}
+    </text>
+    <text x="{{ x + bar_w/2 }}" y="52" text-anchor="middle" font-size="8" fill="#555">{{ rs.rot_short[slot] }}</text>
+    {% endif %}
+    {% endfor %}
+    <line x1="0" y1="{{ mid_y }}" x2="400" y2="{{ mid_y }}" stroke="#ccc" stroke-width="0.5"/>
+  </svg>
+
+  <p class="formula-note">
+    Side-out = punti conquistati quando avversario serve · Break = punti al nostro servizio ·
+    Ref: SO≥55% buono · Break≥35% buono · Verde=positivo · Rosso=critico
+  </p>
+  {% endif %}
+
+  <h3>⏱ Minuti Giocati</h3>
+  <table>
+    <thead>
+      <tr>
+        <th class="left">N°</th><th class="left">Atleta</th><th>Ruolo</th>
+        {% for s in sets %}
+        <th>Set {{ s.number }}</th>
+        {% endfor %}
+        <th>Totale</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pnum_str, ps in total_stats.items()|sort(attribute='0') %}
+      {% set pnum_int = pnum_str|int %}
+      {% set tot_min = match_minutes.get(pnum_int, 0) %}
+      {% if tot_min > 0 %}
+      {% set info = p_by_num.get(pnum_int) %}
+      <tr>
+        <td class="left"><span class="num-badge">{{ pnum_str }}</span></td>
+        <td class="left">{{ info.name if info else '#'+(pnum_str|string) }}</td>
+        <td>{{ info.role if info else '–' }}</td>
+        {% for s in sets %}
+          {# recupera minuti per set dal set data #}
+          {% set set_min = s.get('minutes', {}).get(pnum_int, 0) %}
+          <td>{% if set_min > 0 %}{{ set_min }}'{% else %}<span class="muted">—</span>{% endif %}</td>
+        {% endfor %}
+        <td><b>{{ tot_min }}'</b></td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="formula-note">Stima basata sui timestamp degli eventi. 1' minimo per ogni set in cui il giocatore è presente.</p>
+
+  <!-- Grafici punti segnati / ace / kill per giocatore -->
+  {% set pl_list = total_stats.items()|list|sort(attribute='0') %}
+  {% if pl_list %}
+  <div style="display:flex;gap:14px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="flex:1;min-width:200px">
+      <h4>Punti Segnati</h4>
+      {% set max_pts = pl_list|map(attribute='1')|map(attribute='pts_scored')|max|default(1) %}
+      {% set bw=28 %}{% set gap=8 %}{% set h=65 %}
+      {% set tw = pl_list|length * (bw+gap) + 10 %}
+      <svg class="bar-chart" viewBox="0 0 {{ tw }} {{ h+28 }}" height="{{ h+28 }}">
+        {% for pnum,s in pl_list %}
+        {% set x = loop.index0*(bw+gap)+5 %}
+        {% set bh = (s.pts_scored/max_pts*h)|int if max_pts>0 else 0 %}
+        <rect x="{{ x }}" y="{{ h-bh }}" width="{{ bw }}" height="{{ bh }}"
+              fill="{{ cat.color }}" opacity=".85" rx="2"/>
+        {% if s.pts_scored > 0 %}
+        <text x="{{ x+bw/2 }}" y="{{ h-bh-2 }}" text-anchor="middle"
+              font-size="7" font-weight="700" fill="{{ cat.color }}">{{ s.pts_scored }}</text>
+        {% endif %}
+        <text x="{{ x+bw/2 }}" y="{{ h+11 }}" text-anchor="middle" font-size="7.5" fill="#333">#{{ pnum }}</text>
+        {% endfor %}
+        <line x1="5" y1="{{ h }}" x2="{{ tw-5 }}" y2="{{ h }}" stroke="#ccc" stroke-width=".5"/>
+      </svg>
+    </div>
+    <div style="flex:1;min-width:200px">
+      <h4>Punti Persi (Errori)</h4>
+      {% set max_err = pl_list|map(attribute='1')|map(attribute='pts_lost')|max|default(1) %}
+      <svg class="bar-chart" viewBox="0 0 {{ tw }} {{ h+28 }}" height="{{ h+28 }}">
+        {% for pnum,s in pl_list %}
+        {% set x = loop.index0*(bw+gap)+5 %}
+        {% set bh = (s.pts_lost/max_err*h)|int if max_err>0 else 0 %}
+        <rect x="{{ x }}" y="{{ h-bh }}" width="{{ bw }}" height="{{ bh }}"
+              fill="#c0392b" opacity=".75" rx="2"/>
+        {% if s.pts_lost > 0 %}
+        <text x="{{ x+bw/2 }}" y="{{ h-bh-2 }}" text-anchor="middle"
+              font-size="7" font-weight="700" fill="#c0392b">{{ s.pts_lost }}</text>
+        {% endif %}
+        <text x="{{ x+bw/2 }}" y="{{ h+11 }}" text-anchor="middle" font-size="7.5" fill="#333">#{{ pnum }}</text>
+        {% endfor %}
+        <line x1="5" y1="{{ h }}" x2="{{ tw-5 }}" y2="{{ h }}" stroke="#ccc" stroke-width=".5"/>
+      </svg>
+    </div>
+  </div>
+  {% endif %}
+
+  <h3>Ricezione</h3>
+  {{ table_ricezione(total_stats, p_by_num) }}
+
+  <h3>Attacco</h3>
+  {{ table_attacco(total_stats, p_by_num) }}
+
+  <h3>Servizio · Muro · Difesa · Punti</h3>
+  {{ table_altri(total_stats, p_by_num) }}
+  {% endif %}
+
+  <!-- Dettaglio per set -->
+  {% for s in sets %}
+  <div class="no-break">
+  <h2>Set {{ s.number }}
+    <span style="font-weight:400;font-size:12px">
+      {{ s.state.score_us }} – {{ s.state.score_them }}
+      {% if s.state.winner=='us' %}· VINTO{% elif s.state.winner %}· PERSO{% endif %}
+    </span>
+  </h2>
+  {% if s.player_stats %}
+    {% set has_rec = s.player_stats.values()|selectattr('rec_total','gt',0)|list|length > 0 %}
+    {% set has_att = s.player_stats.values()|selectattr('att_total','gt',0)|list|length > 0 %}
+    {% if has_rec %}<h3>Ricezione</h3>{{ table_ricezione(s.player_stats, p_by_num) }}{% endif %}
+    {% if has_att %}<h3>Attacco</h3>  {{ table_attacco(s.player_stats, p_by_num) }}{% endif %}
+    <h3>Servizio · Muro · Difesa</h3>{{ table_altri(s.player_stats, p_by_num) }}
+  {% endif %}
+  </div>
+  {% endfor %}
+
+  <!-- PALLEGGIATORE — Heatmap e Distribuzione -->
+  {% if setter_stats and setter_stats.total_sets > 0 %}
+  <div class="page-break no-break">
+  <h2>Palleggiatore — Heatmap Zona e Distribuzione
+    {% if setter_stats.setter_num %}· #{{ setter_stats.setter_num }}{% endif %}
+  </h2>
+
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+
+    <!-- Campo SVG heatmap -->
+    <div style="flex:0 0 auto">
+      <h4>Frequenza alzate per zona ({{ setter_stats.total_sets }} tot.)</h4>
+      {% set hm = setter_stats.heatmap %}
+      {% set max_z = hm.values()|max|default(1) %}
+      <svg viewBox="0 0 240 160" width="240" height="160"
+           xmlns="http://www.w3.org/2000/svg" style="border:1px solid #ccc;border-radius:4px">
+        <!-- Rete -->
+        <line x1="0" y1="80" x2="240" y2="80" stroke="var(--accent,#1a5c2e)" stroke-width="2.5"/>
+        <text x="120" y="77" text-anchor="middle" font-size="7" fill="var(--accent,#1a5c2e)"
+              font-weight="bold">RETE</text>
+        <!-- Prima linea: zone 4,3,2 (y=0..79) -->
+        {% for z,x in [(4,0),(3,80),(2,160)] %}
+          {% set cnt = hm.get(z,0) %}
+          {% set alpha = (cnt/max_z*0.82)|round(2) if max_z>0 else 0 %}
+          <rect x="{{ x+1 }}" y="1" width="78" height="77"
+                fill="#1a5c2e" fill-opacity="{{ alpha }}"
+                stroke="#ccc" stroke-width="0.5" rx="2"/>
+          <text x="{{ x+40 }}" y="26" text-anchor="middle" font-size="18"
+                font-weight="900"
+                fill="{{ '#fff' if alpha>0.5 else '#1a5c2e' }}">{{ cnt }}</text>
+          <text x="{{ x+40 }}" y="40" text-anchor="middle" font-size="8"
+                fill="{{ '#fff' if alpha>0.5 else '#555' }}">Zona {{ z }}</text>
+          {% if setter_stats.total_sets > 0 %}
+          <text x="{{ x+40 }}" y="53" text-anchor="middle" font-size="8"
+                fill="{{ '#fff' if alpha>0.5 else '#777' }}">
+            {{ (cnt/setter_stats.total_sets*100)|round|int }}%</text>
+          {% endif %}
+        {% endfor %}
+        <!-- Seconda linea: zone 5,6,1 (y=81..159) -->
+        {% for z,x in [(5,0),(6,80),(1,160)] %}
+          {% set cnt = hm.get(z,0) %}
+          {% set alpha = (cnt/max_z*0.82)|round(2) if max_z>0 else 0 %}
+          <rect x="{{ x+1 }}" y="82" width="78" height="76"
+                fill="#1a5c2e" fill-opacity="{{ alpha }}"
+                stroke="#ccc" stroke-width="0.5" rx="2"/>
+          <text x="{{ x+40 }}" y="107" text-anchor="middle" font-size="18"
+                font-weight="900"
+                fill="{{ '#fff' if alpha>0.5 else '#1a5c2e' }}">{{ cnt }}</text>
+          <text x="{{ x+40 }}" y="121" text-anchor="middle" font-size="8"
+                fill="{{ '#fff' if alpha>0.5 else '#555' }}">Zona {{ z }}</text>
+          {% if setter_stats.total_sets > 0 %}
+          <text x="{{ x+40 }}" y="134" text-anchor="middle" font-size="8"
+                fill="{{ '#fff' if alpha>0.5 else '#777' }}">
+            {{ (cnt/setter_stats.total_sets*100)|round|int }}%</text>
+          {% endif %}
+        {% endfor %}
+        <!-- Linee verticali divisorie -->
+        <line x1="80"  y1="0" x2="80"  y2="160" stroke="#ccc" stroke-width="0.5"/>
+        <line x1="160" y1="0" x2="160" y2="160" stroke="#ccc" stroke-width="0.5"/>
+        <rect x="0" y="0" width="240" height="160" fill="none"
+              stroke="#999" stroke-width="1" rx="3"/>
+        <!-- Label lati -->
+        <text x="238" y="42"  text-anchor="end" font-size="7" fill="#999">Davanti</text>
+        <text x="238" y="122" text-anchor="end" font-size="7" fill="#999">Dietro</text>
+      </svg>
+      <p class="formula-note">4·3·2 = davanti (prima linea) · 5·6·1 = dietro</p>
+    </div>
+
+    <!-- Distribuzione per attaccante -->
+    <div style="flex:1;min-width:200px">
+      <h4>Distribuzione alzate per attaccante</h4>
+      {% if setter_stats.totals %}
+      <table style="width:100%;border-collapse:collapse;font-size:8.5px">
+        <thead>
+          <tr>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px;text-align:left">N°</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px;text-align:left">Atleta</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Alz.</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Kill</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Cont.</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Err.</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Eff%</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">% alz.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set tot_alz = setter_stats.totals.values()|map(attribute='total')|sum %}
+          {% for pnum,d in setter_stats.totals.items()|sort(attribute='1.total',reverse=True) %}
+          {% set info = p_by_num.get(pnum|int) %}
+          {% set pct_a = (d.total/tot_alz*100)|round|int if tot_alz>0 else 0 %}
+          {% set eff_color = '#1a5c2e' if d.eff and d.eff>=25 else '#c0392b' if d.eff and d.eff<0 else '#555' %}
+          <tr style="background:{{ '#f7f7f7' if loop.index%2==0 else '#fff' }}">
+            <td style="padding:3px 5px;font-weight:700">
+              <span style="background:#1a5c2e;color:#fff;border-radius:2px;padding:0 4px;font-size:8px">{{ pnum }}</span>
+            </td>
+            <td style="padding:3px 5px">{{ info.name if info else '#'+pnum|string }}</td>
+            <td style="padding:3px 5px;text-align:center;font-weight:700">{{ d.total }}</td>
+            <td style="padding:3px 5px;text-align:center;color:{{ '#1a5c2e' if d.kill>0 else '#333' }};font-weight:{{ 'bold' if d.kill>0 else 'normal' }}">{{ d.kill }}</td>
+            <td style="padding:3px 5px;text-align:center">{{ d.cont }}</td>
+            <td style="padding:3px 5px;text-align:center;color:{{ '#c0392b' if d.err>0 else '#333' }}">{{ d.err }}</td>
+            <td style="padding:3px 5px;text-align:center;color:{{ eff_color }};font-weight:bold">
+              {{ d.eff|string+'%' if d.eff is not none else '—' }}
+            </td>
+            <td style="padding:3px 5px;text-align:center">{{ pct_a }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Spostamento palleggiatore -->
+  {% if setter_stats.disp_summary and setter_stats.disp_summary.values()|sum > 0 %}
+  <h4>Spostamento Palleggiatore
+    ({% for l,n in setter_stats.disp_summary.items() %}{{ l }}: {{ n }}{% if not loop.last %} · {% endif %}{% endfor %})
+  </h4>
+  <table style="width:100%;border-collapse:collapse;font-size:8.5px;margin-bottom:6px">
+    <thead>
+      <tr>
+        <th style="background:#555;color:#fff;padding:3px 5px">Spostamento</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Alzate</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">%</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Kill</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Cont.</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Err.</th>
+        <th style="background:#555;color:#fff;padding:3px 5px">Efficienza%</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set tot_disp = setter_stats.disp_summary.values()|sum %}
+      {% for label in ['In zona','Corto','Lungo','Fuori zona'] %}
+      {% set cnt = setter_stats.disp_summary.get(label,0) %}
+      {% if cnt > 0 %}
+      {% set ed = setter_stats.disp_eff.get(label) %}
+      {% set bg = {'In zona':'#e8f5ee','Corto':'#fffde7','Lungo':'#fff3e0','Fuori zona':'#fdecea'} %}
+      {% set tc = {'In zona':'#1a5c2e','Corto':'#b7770d','Lungo':'#e67e22','Fuori zona':'#c0392b'} %}
+      <tr style="background:{{ bg.get(label,'#fff') }}">
+        <td style="padding:3px 8px;font-weight:700;color:{{ tc.get(label,'#333') }}">{{ label }}</td>
+        <td style="padding:3px 5px;text-align:center;font-weight:700">{{ cnt }}</td>
+        <td style="padding:3px 5px;text-align:center">{{ (cnt/tot_disp*100)|round|int }}%</td>
+        {% if ed %}
+        <td style="padding:3px 5px;text-align:center;color:#1a5c2e">{{ ed.kill }}</td>
+        <td style="padding:3px 5px;text-align:center">{{ ed.cont }}</td>
+        <td style="padding:3px 5px;text-align:center;color:#c0392b">{{ ed.err }}</td>
+        {% set ecolor = '#1a5c2e' if ed.eff and ed.eff>=25 else '#c0392b' if ed.eff and ed.eff<0 else '#555' %}
+        <td style="padding:3px 5px;text-align:center;font-weight:700;color:{{ ecolor }}">
+          {{ ed.eff|string+'%' if ed.eff is not none else '—' }}
+        </td>
+        {% else %}
+        <td colspan="4" style="padding:3px 5px;text-align:center;color:#999">—</td>
+        {% endif %}
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="formula-note">
+    In zona=0 passi · Corto=1 passo · Lungo=2 passi · Fuori zona=3 passi ·
+    Senza scambi di posizione · Efficienza=(Kill+Cont–Err)/Tot×100
+  </p>
+  {% endif %}
+
+  <!-- Dettaglio distribuzione per zona -->
+  {% set has_zone_dist = setter_stats.distribution.values()|map('length')|sum > 0 %}
+  {% if has_zone_dist %}
+  <h4>Distribuzione per zona di alzata</h4>
+  <table style="width:100%;border-collapse:collapse;font-size:8px">
+    <thead>
+      <tr>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Zona</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">N°</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Kill</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Cont.</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Err.</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Tot.</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Eff%</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set row_i = namespace(n=0) %}
+      {% for z in [4,3,2,5,6,1] %}
+      {% set zd = setter_stats.distribution.get(z,{}) %}
+      {% if zd %}
+      {% for pnum,d in zd.items()|sort(attribute='1.total',reverse=True) %}
+      {% set info = p_by_num.get(pnum|int) %}
+      {% set ecolor = '#1a5c2e' if d.eff and d.eff>=25 else '#c0392b' if d.eff and d.eff<0 else '#333' %}
+      {% set row_i.n = row_i.n + 1 %}
+      <tr style="background:{{ '#f7f7f7' if row_i.n%2==0 else '#fff' }}">
+        <td style="padding:2px 5px;font-weight:700">Z{{ z }} — {{ zone_names.get(z,'') }}</td>
+        <td style="padding:2px 5px;text-align:center">
+          <span style="background:#1a5c2e;color:#fff;border-radius:2px;padding:0 3px;font-size:7.5px">{{ pnum }}</span>
+        </td>
+        <td style="padding:2px 5px;text-align:center;color:{{ '#1a5c2e' if d.kill>0 else '#333' }};font-weight:{{ 'bold' if d.kill>0 else 'normal' }}">{{ d.kill }}</td>
+        <td style="padding:2px 5px;text-align:center">{{ d.cont }}</td>
+        <td style="padding:2px 5px;text-align:center;color:{{ '#c0392b' if d.err>0 else '#333' }}">{{ d.err }}</td>
+        <td style="padding:2px 5px;text-align:center;color:#777">{{ d.total }}</td>
+        <td style="padding:2px 5px;text-align:center;font-weight:700;color:{{ ecolor }}">
+          {{ d.eff|string+'%' if d.eff is not none else '—' }}
+        </td>
+      </tr>
+      {% endfor %}
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  </div><!-- /palleggiatore section -->
+  {% endif %}
+
+  <!-- ATTACCHI — Heatmap per zona -->
+  {% if attack_zone_stats and attack_zone_stats.total_attacks > 0 %}
+  <div class="page-break no-break">
+  <h2>Attacchi — Distribuzione per Zona ({{ attack_zone_stats.total_attacks }} tot.)</h2>
+  {% set hm = attack_zone_stats.heatmap %}
+  {% set ze = attack_zone_stats.zone_eff %}
+  {% set max_z = hm.values()|max|default(1) %}
+
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+    <div>
+      <h4>Frequenza e efficacia per zona</h4>
+      <svg style="width:240px;height:168px" viewBox="0 0 300 210" xmlns="http://www.w3.org/2000/svg">
+        <line x1="0" y1="105" x2="300" y2="105" stroke="#333" stroke-width="3"/>
+        <text x="150" y="101" text-anchor="middle" font-size="9" fill="#555" font-weight="bold">RETE</text>
+        {% for z,x in [(4,0),(3,100),(2,200)] %}
+          {% set cnt = hm.get(z,0) %}
+          {% set alpha = (cnt / max_z * 0.7)|round(2) if max_z > 0 else 0 %}
+          {% set zdata = ze.get(z,{}) %}
+          {% set kp = zdata.get('kill_pct') %}
+          {% set ep = zdata.get('eff') %}
+          <rect x="{{ x+1 }}" y="1" width="98" height="102" fill="#2563eb" fill-opacity="{{ alpha }}" stroke="#aaa" stroke-width="1" rx="2"/>
+          <text x="{{ x+50 }}" y="28" text-anchor="middle" font-size="22" font-weight="900" fill="{{ '#fff' if alpha > 0.4 else '#2563eb' }}">{{ cnt }}</text>
+          <text x="{{ x+50 }}" y="46" text-anchor="middle" font-size="9" fill="{{ '#eee' if alpha > 0.4 else '#444' }}">Zona {{ z }}</text>
+          {% if cnt > 0 %}
+          <text x="{{ x+50 }}" y="63" text-anchor="middle" font-size="8" fill="{{ '#eee' if alpha > 0.4 else '#333' }}">Kill {{ kp|int if kp is not none else '–' }}%</text>
+          <text x="{{ x+50 }}" y="79" text-anchor="middle" font-size="8" fill="{{ '#eee' if alpha > 0.4 else '#333' }}">Eff {{ ep|int if ep is not none else '–' }}%</text>
+          <text x="{{ x+50 }}" y="95" text-anchor="middle" font-size="7" fill="{{ '#ccc' if alpha > 0.4 else '#666' }}">{{ (cnt / attack_zone_stats.total_attacks * 100)|round|int }}% tot</text>
+          {% endif %}
+        {% endfor %}
+        {% for z,x in [(5,0),(6,100),(1,200)] %}
+          {% set cnt = hm.get(z,0) %}
+          {% set alpha = (cnt / max_z * 0.7)|round(2) if max_z > 0 else 0 %}
+          {% set zdata = ze.get(z,{}) %}
+          {% set kp = zdata.get('kill_pct') %}
+          {% set ep = zdata.get('eff') %}
+          <rect x="{{ x+1 }}" y="107" width="98" height="102" fill="#2563eb" fill-opacity="{{ alpha }}" stroke="#aaa" stroke-width="1" rx="2"/>
+          <text x="{{ x+50 }}" y="134" text-anchor="middle" font-size="22" font-weight="900" fill="{{ '#fff' if alpha > 0.4 else '#2563eb' }}">{{ cnt }}</text>
+          <text x="{{ x+50 }}" y="152" text-anchor="middle" font-size="9" fill="{{ '#eee' if alpha > 0.4 else '#444' }}">Zona {{ z }}</text>
+          {% if cnt > 0 %}
+          <text x="{{ x+50 }}" y="169" text-anchor="middle" font-size="8" fill="{{ '#eee' if alpha > 0.4 else '#333' }}">Kill {{ kp|int if kp is not none else '–' }}%</text>
+          <text x="{{ x+50 }}" y="185" text-anchor="middle" font-size="8" fill="{{ '#eee' if alpha > 0.4 else '#333' }}">Eff {{ ep|int if ep is not none else '–' }}%</text>
+          <text x="{{ x+50 }}" y="201" text-anchor="middle" font-size="7" fill="{{ '#ccc' if alpha > 0.4 else '#666' }}">{{ (cnt / attack_zone_stats.total_attacks * 100)|round|int }}% tot</text>
+          {% endif %}
+        {% endfor %}
+        <line x1="100" y1="0" x2="100" y2="210" stroke="#aaa" stroke-width="1"/>
+        <line x1="200" y1="0" x2="200" y2="210" stroke="#aaa" stroke-width="1"/>
+        <rect x="0" y="0" width="300" height="210" fill="none" stroke="#aaa" stroke-width="2" rx="4"/>
+        <text x="298" y="55"  text-anchor="end" font-size="7" fill="#888">Davanti</text>
+        <text x="298" y="160" text-anchor="end" font-size="7" fill="#888">Dietro</text>
+      </svg>
+    </div>
+
+    {% if attack_zone_stats.totals %}
+    <div>
+      <h4>Riepilogo per attaccante</h4>
+      <table style="border-collapse:collapse;font-size:9px">
+        <thead><tr style="border-bottom:1px solid #ccc">
+          <th style="padding:2px 5px;text-align:left">N°</th>
+          <th style="padding:2px 5px">Tot</th>
+          <th style="padding:2px 5px">Kill</th>
+          <th style="padding:2px 5px">Kill%</th>
+          <th style="padding:2px 5px">Eff%</th>
+        </tr></thead>
+        <tbody>
+          {% for pnum, d in attack_zone_stats.totals.items()|sort(attribute='1.total', reverse=True) %}
+          {% set info = p_by_num.get(pnum|int) %}
+          <tr style="border-bottom:1px solid #eee">
+            <td style="padding:2px 5px"><b>#{{ pnum }}</b>{% if info %} {{ info.name }}{% endif %}</td>
+            <td style="padding:2px 5px;text-align:center">{{ d.total }}</td>
+            <td style="padding:2px 5px;text-align:center">{{ d.kill }}</td>
+            <td style="padding:2px 5px;text-align:center">{{ d.kill_pct|int if d.kill_pct is not none else '—' }}%</td>
+            <td style="padding:2px 5px;text-align:center">{{ d.eff|int if d.eff is not none else '—' }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+  </div><!-- /attacchi section -->
+  {% endif %}
+
+  <div class="rpt-footer">
+    <span>⬡ VolleyStat · Generato {{ generated }}</span>
+    <span>{{ cat.name }} · vs {{ match.opponent }} · {{ match.date[:10] }}</span>
+  </div>
+</div>
+</body>
+</html>

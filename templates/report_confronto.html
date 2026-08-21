@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Report Confronto Categorie{% if club.name %} — {{ club.name }}{% endif %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='report_base.css') }}">
+<style>
+  :root {
+    --accent:        #1a5c2e;
+    --accent-light:  #e6f4eb;
+    --accent-xlight: #f4fbf6;
+  }
+  .top-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px; margin-bottom: 14px;
+  }
+  .top-box {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; box-shadow: var(--shadow-sm);
+  }
+  .top-box-header {
+    padding: 6px 10px; font-size: 9.5px; font-weight: 700; color: #fff;
+    letter-spacing: .3px;
+  }
+  .top-box table { margin: 0; box-shadow: none; border-radius: 0; }
+  .top-box td, .top-box th { font-size: 9px; padding: 3px 6px; }
+</style>
+</head>
+<body>
+
+<div class="print-bar">
+  <span class="rpt-brand">⬡ VolleyStat</span>
+  <button class="btn-print" onclick="window.print()">🖨 Stampa / Salva PDF</button>
+  <button class="btn-back"  onclick="window.history.back()">← Torna</button>
+</div>
+<div class="print-bar-spacer"></div>
+
+<div class="page">
+
+  <div class="rpt-header">
+    <div>
+      <div class="rpt-title-main">⬡ VolleyStat{% if club.name %} — {{ club.name }}{% endif %}</div>
+      <div class="rpt-title-sub">
+        Confronto Categorie{% if data %} · {{ data|length }} categorie{% endif %}
+        {% set seasons = data|map(attribute='cat')|map(attribute='season')|select|unique|list %}
+        {% if seasons %} · {{ seasons|join(', ') }}{% endif %}
+      </div>
+    </div>
+    <div class="rpt-meta">Generato: {{ generated }}</div>
+  </div>
+
+  <!-- Tabella riepilogo -->
+  <h2>Riepilogo Stagione per Categoria</h2>
+  <table>
+    <thead>
+      <tr>
+        <th class="left">Categoria</th>
+        <th>Atleti</th><th>Partite</th><th>Vinte</th><th>Perse</th>
+        <th>%Vittorie</th><th>Ø Pt/Set</th><th>Set Tot.</th>
+        <th>Top Scorer</th><th>Pt Stagione</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in data %}
+      {% set s = d.stats %}
+      {% set vp = (s.wins / s.matches_played * 100)|round(1) if s.matches_played > 0 else 0 %}
+      <tr>
+        <td class="left">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;
+                       background:{{ d.cat.color }};margin-right:4px;vertical-align:middle"></span>
+          <b>{{ d.cat.name }}</b>
+          {% if d.cat.season %}<span class="muted"> · {{ d.cat.season }}</span>{% endif %}
+        </td>
+        <td>{{ s.p_by_num|length }}</td>
+        <td>{{ s.matches_played }}</td>
+        <td class="{{ 'good' if s.wins > 0 }}"><b>{{ s.wins }}</b></td>
+        <td class="{{ 'bad' if s.losses > 0 }}">{{ s.losses }}</td>
+        <td class="{{ 'good' if vp >= 50 else 'bad' if vp < 50 and s.matches_played > 0 else '' }}">
+          <b>{{ vp }}%</b>
+        </td>
+        <td><b>{{ s.avg_pts }}</b></td>
+        <td>{{ s.total_sets }}</td>
+        <td>
+          {% if d.top_scorer_info %}
+          <b>#{{ d.top_scorer_info.number }}</b> {{ d.top_scorer_info.name }}
+          {% elif s.top_scorer %}#{{ s.top_scorer }}{% else %}—{% endif %}
+        </td>
+        <td class="{{ 'good' if s.top_pts > 0 }}"><b>{{ s.top_pts }}</b></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Grafici comparativi SVG -->
+  <h2>Grafici Comparativi</h2>
+
+  {% set nc = data|length %}
+  {% if nc > 0 %}
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+
+    <!-- Vittorie/Sconfitte stacked bar -->
+    <div style="flex:1;min-width:200px">
+      <h4>Vittorie vs Sconfitte</h4>
+      {% set max_m = data|map(attribute='stats')|map(attribute='matches_played')|max|default(1) %}
+      {% set bw=40 %}{% set gap=10 %}{% set h=80 %}
+      {% set tw = nc*(bw+gap)+10 %}
+      <svg class="bar-chart" viewBox="0 0 {{ tw }} {{ h+30 }}" height="{{ h+30 }}">
+        {% for d in data %}
+        {% set x = loop.index0*(bw+gap)+5 %}
+        {% set s = d.stats %}
+        {% set total = s.wins + s.losses %}
+        {% set win_h = (s.wins/total*h)|int if total > 0 else 0 %}
+        {% set los_h = (s.losses/total*h)|int if total > 0 else 0 %}
+        <!-- Vittorie (verde) -->
+        <rect x="{{ x }}" y="{{ h-win_h }}" width="{{ bw }}" height="{{ win_h }}"
+              fill="{{ d.cat.color }}" opacity=".9" rx="2 2 0 0"/>
+        {% if s.wins > 0 %}
+        <text x="{{ x+bw/2 }}" y="{{ h-win_h+11 }}" text-anchor="middle"
+              font-size="8" font-weight="700" fill="#fff">{{ s.wins }}V</text>
+        {% endif %}
+        <!-- Sconfitte (rosso) -->
+        {% if s.losses > 0 %}
+        <rect x="{{ x }}" y="{{ h-win_h-los_h }}" width="{{ bw }}" height="{{ los_h }}"
+              fill="#c0392b" opacity=".6" rx="0 0 0 0"/>
+        <text x="{{ x+bw/2 }}" y="{{ h-win_h-los_h+11 }}" text-anchor="middle"
+              font-size="7.5" fill="#fff">{{ s.losses }}S</text>
+        {% endif %}
+        {% if total == 0 %}
+        <rect x="{{ x }}" y="{{ h-4 }}" width="{{ bw }}" height="4" fill="#eee" rx="2"/>
+        {% endif %}
+        <text x="{{ x+bw/2 }}" y="{{ h+11 }}" text-anchor="middle" font-size="8" fill="#333">
+          {{ d.cat.short }}
+        </text>
+        {% endfor %}
+        <line x1="5" y1="{{ h }}" x2="{{ tw-5 }}" y2="{{ h }}" stroke="#ccc" stroke-width=".5"/>
+      </svg>
+    </div>
+
+    <!-- Media punti per set -->
+    <div style="flex:1;min-width:200px">
+      <h4>Media Punti per Set</h4>
+      {% set max_avg = data|map(attribute='stats')|map(attribute='avg_pts')|max|default(1) %}
+      <svg class="bar-chart" viewBox="0 0 {{ tw }} {{ h+30 }}" height="{{ h+30 }}">
+        {% for d in data %}
+        {% set x = loop.index0*(bw+gap)+5 %}
+        {% set s = d.stats %}
+        {% set bh = (s.avg_pts/max_avg*h)|int if max_avg > 0 else 0 %}
+        <rect x="{{ x }}" y="{{ h-bh }}" width="{{ bw }}" height="{{ bh }}"
+              fill="{{ d.cat.color }}" opacity=".85" rx="2"/>
+        {% if s.avg_pts > 0 %}
+        <text x="{{ x+bw/2 }}" y="{{ h-bh-2 }}" text-anchor="middle"
+              font-size="8" font-weight="700" fill="{{ d.cat.color }}">{{ s.avg_pts }}</text>
+        {% endif %}
+        <text x="{{ x+bw/2 }}" y="{{ h+11 }}" text-anchor="middle" font-size="8" fill="#333">
+          {{ d.cat.short }}
+        </text>
+        {% endfor %}
+        <line x1="5" y1="{{ h }}" x2="{{ tw-5 }}" y2="{{ h }}" stroke="#ccc" stroke-width=".5"/>
+      </svg>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Top marcatori per categoria -->
+  <h2>Top 5 Marcatori per Categoria</h2>
+  <div class="top-grid">
+    {% for d in data %}
+    <div class="top-box">
+      <div class="top-box-header" style="background:{{ d.cat.color }}">
+        {{ d.cat.name }}{% if d.cat.season %} · {{ d.cat.season }}{% endif %}
+      </div>
+      {% if d.top5 %}
+      <table>
+        <thead><tr>
+          <th class="left">N°</th><th class="left">Atleta</th>
+          <th>+Pt</th><th>Kill</th><th>Ace</th><th>Muro</th>
+        </tr></thead>
+        <tbody>
+          {% for pnum, ps in d.top5 %}
+          {% set info = d.stats.p_by_num.get(pnum|int) %}
+          <tr {% if loop.first %}style="background:{{ d.cat.color }}0d"{% endif %}>
+            <td class="left">
+              <span style="background:{{ d.cat.color }};color:#fff;border-radius:2px;
+                           padding:0 4px;font-size:8px;font-weight:700">{{ pnum }}</span>
+            </td>
+            <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+            <td class="good"><b>{{ ps.pts_scored }}</b></td>
+            <td>{{ ps.attack_kill }}</td>
+            <td>{{ ps.serve_ace }}</td>
+            <td>{{ ps.block_pt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="padding:6px 8px;font-size:9px;color:#999">Nessun dato.</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Dettaglio statistiche cumulative per categoria -->
+  {% for d in data %}
+  {% set s = d.stats %}
+  {% if s.player_season %}
+  <div class="no-break page-break">
+    <h2>
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;
+                   background:{{ d.cat.color }};margin-right:6px;vertical-align:middle"></span>
+      {{ d.cat.name }} — Statistiche Cumulative
+    </h2>
+
+    {% set enriched = {} %}
+    {# Jinja2 non permette di chiamare funzioni Python direttamente, usiamo il pre-calcolato #}
+    {# Le stats sono già raw senza enrich — mostriamo i valori grezzi #}
+
+    <!-- Ricezione -->
+    {% set has_rec = s.player_season.values()|selectattr('rec_pos','defined')|list|length > 0 %}
+    {% if has_rec %}
+    <h3 style="color:{{ d.cat.color }}">Ricezione</h3>
+    <table>
+      <thead><tr>
+        <th class="left">N°</th><th class="left">Atleta</th>
+        <th>R+</th><th>R–</th><th>Ace sub.</th><th>Totale</th>
+      </tr></thead>
+      <tbody>
+        {% for pnum, ps in s.player_season.items()|sort(attribute='0') %}
+        {% set rtot = ps.rec_pos + ps.rec_neg + ps.rec_err %}
+        {% if rtot > 0 %}
+        {% set info = s.p_by_num.get(pnum|int) %}
+        <tr>
+          <td class="left">
+            <span style="background:{{ d.cat.color }};color:#fff;border-radius:2px;
+                         padding:0 4px;font-size:8px;font-weight:700">{{ pnum }}</span>
+          </td>
+          <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+          <td class="{{ 'good' if ps.rec_pos }}">{{ ps.rec_pos }}</td>
+          <td>{{ ps.rec_neg }}</td>
+          <td class="{{ 'bad' if ps.rec_err }}">{{ ps.rec_err }}</td>
+          <td class="muted">{{ rtot }}</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Attacco -->
+    <h3 style="color:{{ d.cat.color }}">Attacco · Servizio · Punti</h3>
+    <table>
+      <thead><tr>
+        <th class="left">N°</th><th class="left">Atleta</th>
+        <th>Kill</th><th>Cont.</th><th>Err.A</th><th>Mur.A</th>
+        <th>Ace</th><th>Err.S</th><th>Muro</th>
+        <th>+Pt</th><th>–Pt</th>
+      </tr></thead>
+      <tbody>
+        {% for pnum, ps in s.player_season.items()|sort(attribute='1.pts_scored', reverse=True) %}
+        {% set info = s.p_by_num.get(pnum|int) %}
+        <tr>
+          <td class="left">
+            <span style="background:{{ d.cat.color }};color:#fff;border-radius:2px;
+                         padding:0 4px;font-size:8px;font-weight:700">{{ pnum }}</span>
+          </td>
+          <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+          <td class="{{ 'good' if ps.attack_kill }}">{{ ps.attack_kill }}</td>
+          <td>{{ ps.attack_cont }}</td>
+          <td class="{{ 'bad' if ps.attack_err }}">{{ ps.attack_err }}</td>
+          <td class="{{ 'bad' if ps.attack_blk }}">{{ ps.attack_blk }}</td>
+          <td class="{{ 'good' if ps.serve_ace }}">{{ ps.serve_ace }}</td>
+          <td class="{{ 'bad' if ps.serve_err }}">{{ ps.serve_err }}</td>
+          <td class="{{ 'good' if ps.block_pt }}">{{ ps.block_pt }}</td>
+          <td class="good"><b>{{ ps.pts_scored }}</b></td>
+          <td class="bad">{{ ps.pts_lost }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="rpt-footer">
+    <span>⬡ VolleyStat · Generato {{ generated }}</span>
+    <span>{% if club.name %}{{ club.name }} · {% endif %}Confronto {{ data|length }} categorie</span>
+  </div>
+</div>
+</body>
+</html>

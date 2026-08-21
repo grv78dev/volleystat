@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# App data (contains real player names and match data — kept local only)
+data/
+
+# OS
+.DS_Store
+
+# Editor / tooling local state
+.claude/settings.local.json
+.remember/
+.firecrawl/
+
+# Unused local asset, not referenced by the app
+legavolley.png
