@@ -1266,8 +1266,8 @@ def build_ai_export(cat_id, match_id):
                     sv = p.get('serve_ace',0) + p.get('serve_err',0)
                     if sv > 0:
                         parts.append(f"Serv: Ace={p['serve_ace']} Err={p['serve_err']}")
-                    if p.get('block_pt',0) + p.get('block_err',0) > 0:
-                        parts.append(f"Muro: Pt={p['block_pt']} Err={p['block_err']}")
+                    if p.get('block_pt',0) + p.get('block_err',0) + p.get('block_touch',0) > 0:
+                        parts.append(f"Muro: Pt={p['block_pt']} Err={p['block_err']} Camp={p.get('block_touch',0)}")
                     if p.get('def_pos',0) + p.get('def_err',0) > 0:
                         parts.append(f"Dif: Pos={p['def_pos']} Err={p['def_err']}")
                     parts.append(f"+Pt={p['pts_scored']} -Pt={p['pts_lost']}")
@@ -1299,8 +1299,8 @@ def build_ai_export(cat_id, match_id):
         sv = p.get('serve_ace',0) + p.get('serve_err',0)
         if sv > 0:
             row.append(f"SERVIZIO: Ace={p['serve_ace']} Err={p['serve_err']}")
-        if p.get('block_pt',0)+p.get('block_err',0) > 0:
-            row.append(f"MURO: Pt={p['block_pt']} Err={p['block_err']}")
+        if p.get('block_pt',0)+p.get('block_err',0)+p.get('block_touch',0) > 0:
+            row.append(f"MURO: Pt={p['block_pt']} Err={p['block_err']} Camp={p.get('block_touch',0)}")
         if p.get('def_pos',0)+p.get('def_err',0) > 0:
             row.append(f"DIFESA: Pos={p['def_pos']} Err={p['def_err']}")
         row.append(f"PUNTI: +{p['pts_scored']} / -{p['pts_lost']}")
@@ -1601,7 +1601,7 @@ def report_sintetico(cat_id, match_id):
     p_by_num, all_sets, total_stats = _build_stats(cat_id, match_id)
 
     RAW_KEYS = ('serve_ace','serve_err','attack_kill','attack_cont','attack_err',
-                'attack_blk','block_pt','block_err','rec_pos','rec_neg','rec_err',
+                'attack_blk','block_pt','block_err','block_touch','rec_pos','rec_neg','rec_err',
                 'def_pos','def_err','pts_scored','pts_lost')
 
     # Set in cui ogni giocatore ha partecipato (dict pnum → list di numeri set)

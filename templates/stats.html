@@ -747,7 +747,7 @@
       <tr>
         <th class="left">N°</th><th class="left">Atleta</th><th>R.</th>
         <th>Ace</th><th>Err.S</th>
-        <th>Muro</th><th>Err.M</th>
+        <th>Muro</th><th>Err.M</th><th title="Muro — palla resta in gioco, nessun punto">Muro c.</th>
         <th>Difesa</th><th>Err.D</th>
         <th>+Pt</th><th>–Pt</th>
       </tr>
@@ -763,6 +763,7 @@
         <td class="{{ 'stat-bad' if s.serve_err }}">{{ s.serve_err }}</td>
         <td class="{{ 'stat-good' if s.block_pt }}">{{ s.block_pt }}</td>
         <td class="{{ 'stat-bad' if s.block_err }}">{{ s.block_err }}</td>
+        <td>{{ s.block_touch }}</td>
         <td>{{ s.def_pos }}</td>
         <td class="{{ 'stat-bad' if s.def_err }}">{{ s.def_err }}</td>
         <td class="stat-pts-good"><b>{{ s.pts_scored }}</b></td>

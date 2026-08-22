@@ -20,6 +20,7 @@ COMMANDS = {
     # Muro
     'B':   (1,0,'block',    'Muro #{p}'),
     'BE':  (0,1,'block',    'Errore muro #{p}'),
+    'BN':  (0,0,'block',    'Muro — palla in gioco #{p}'),
     # Ricezione (RE = ace subito = punto avversario)
     'RE':  (0,1,'reception','Ace subito #{p}'),
     # Difesa
@@ -94,16 +95,16 @@ def parse_command(raw):
         return {'type':'stat','action':'D','player':player,
                 'category':'defense','desc':f'Difesa #{player}'}
 
-    # ORDINE CRITICO: ABN prima di AB, AN prima di A, codici lunghi prima dei corti
-    for code in ('ABN','AN','AB','AE','SE','BE','RE','DE','S','A','B'):
+    # ORDINE CRITICO: ABN prima di AB, AN prima di A, BN prima di B, codici lunghi prima dei corti
+    for code in ('ABN','AN','AB','AE','SE','BE','BN','RE','DE','S','A','B'):
         if cmd.startswith(code):
             rest = cmd[len(code):]
             if rest.isdigit() and rest:
                 player = int(rest)
                 pu, pt, cat, desc_t = COMMANDS[code]
                 desc = desc_t.replace('{p}', str(player))
-                # AN e ABN = stat pura (nessun punto diretto)
-                if code in ('AN', 'ABN'):
+                # AN, ABN e BN = stat pura (nessun punto diretto)
+                if code in ('AN', 'ABN', 'BN'):
                     return {'type':'stat','action':code,'player':player,
                             'category':cat,'desc':desc}
                 return {'type':'point','action':code,'player':player,

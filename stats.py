@@ -68,8 +68,8 @@ def compute_player_stats(sd):
                 serve_ace=0, serve_err=0,
                 # Attacco: kill, continua, errore, murato
                 attack_kill=0, attack_cont=0, attack_err=0, attack_blk=0,
-                # Muro
-                block_pt=0, block_err=0,
+                # Muro: punto, errore, tocco (palla resta in gioco)
+                block_pt=0, block_err=0, block_touch=0,
                 # Ricezione: positiva (permette att.), negativa, ace subito
                 rec_pos=0, rec_neg=0, rec_err=0,
                 # Difesa
@@ -89,6 +89,7 @@ def compute_player_stats(sd):
         'ABN':lambda p: g(p).update(attack_blk=g(p)['attack_blk']+1),   # murato, palla in gioco — no punto perso
         'B':  lambda p: g(p).update(block_pt=g(p)['block_pt']+1,      pts_scored=g(p)['pts_scored']+1),
         'BE': lambda p: g(p).update(block_err=g(p)['block_err']+1,    pts_lost=g(p)['pts_lost']+1),
+        'BN': lambda p: g(p).update(block_touch=g(p)['block_touch']+1),  # muro, palla in gioco — no punto
         'R+': lambda p: g(p).update(rec_pos=g(p)['rec_pos']+1),
         'R-': lambda p: g(p).update(rec_neg=g(p)['rec_neg']+1),
         'RE': lambda p: g(p).update(rec_err=g(p)['rec_err']+1,        pts_lost=g(p)['pts_lost']+1),
