@@ -7,8 +7,21 @@
     <h1>Set {{ set_num }} <span class="subdued">vs {{ match.opponent }}</span></h1>
   </div>
   <div class="header-meta">
+    <button class="btn btn-sm" id="modeToggleBtn" onclick="toggleMode()">⌨ PC</button>
     <a href="{{ url_for('stats_view', cat_id=cat.id, match_id=match.id) }}" class="btn btn-sm">Stats</a>
     <a href="{{ url_for('report_view', cat_id=cat.id, match_id=match.id) }}" class="btn btn-sm" target="_blank">PDF</a>
+  </div>
+</div>
+
+<!-- Selezione modalità input (primo avvio su questo dispositivo) -->
+<div class="modal" id="modeModal" style="display:none">
+  <div class="modal-box">
+    <h3>Modalità di inserimento</h3>
+    <p style="margin-bottom:16px;color:var(--text-muted);font-size:13px;">Come vuoi inserire i comandi su questo dispositivo? Puoi cambiarla in qualsiasi momento dal pulsante in alto.</p>
+    <div class="btn-row" style="flex-direction:column;gap:10px;">
+      <button class="btn btn-accent btn-lg" onclick="setMode('touch')">📱 Tablet — tastierino touch</button>
+      <button class="btn btn-lg" onclick="setMode('keyboard')">⌨️ PC — tastiera fisica</button>
+    </div>
   </div>
 </div>
 
@@ -118,42 +131,138 @@
     <div class="cmd-display" id="cmdDisplay">
       <span id="cmdPreview" class="cmd-text">Pronto...</span>
     </div>
-    <input type="text"
-           id="cmdInput"
-           class="cmd-input-field"
-           placeholder="Digita comando e premi INVIO  (es: S81  A10  B7  SUB10/12)"
-           autocomplete="off"
-           autocorrect="off"
-           spellcheck="false"
-           autofocus>
     <div class="cmd-feedback" id="cmdFeedback"></div>
-    <div class="cmd-shortcuts">
-      <button class="shortcut-btn" onclick="typeShortcut('S')">S[n] Ace</button>
-      <button class="shortcut-btn" onclick="typeShortcut('SE')">SE[n] Err.Serv.</button>
-      <button class="shortcut-btn" onclick="typeShortcut('A')">A[n] Kill</button>
-      <button class="shortcut-btn" onclick="typeShortcut('AN')">AN[n] In campo</button>
-      <button class="shortcut-btn" onclick="typeShortcut('AE')">AE[n] Err.Att.</button>
-      <button class="shortcut-btn" onclick="typeShortcut('AB')">AB[n] Murato pt</button>
-      <button class="shortcut-btn" onclick="typeShortcut('ABN')">ABN[n] Murato campo</button>
-      <button class="shortcut-btn" onclick="typeShortcut('B')">B[n] Muro</button>
-      <button class="shortcut-btn" onclick="typeShortcut('R+')">R+[n] Ric.att</button>
-      <button class="shortcut-btn" onclick="typeShortcut('R-')">R-[n] Ric.neg</button>
-      <button class="shortcut-btn" onclick="typeShortcut('RE')">RE[n] Ace sub.</button>
-      <button class="shortcut-btn btn-setter" onclick="sendCmd('W1')">W1</button>
-      <button class="shortcut-btn btn-setter" onclick="sendCmd('W2')">W2</button>
-      <button class="shortcut-btn btn-setter" onclick="sendCmd('W3')">W3</button>
-      <button class="shortcut-btn btn-setter" onclick="sendCmd('W4')">W4</button>
-      <button class="shortcut-btn btn-setter" onclick="sendCmd('W5')">W5</button>
-      <button class="shortcut-btn btn-setter" onclick="sendCmd('W6')">W6</button>
-      <button class="shortcut-btn" onclick="typeShortcut('SUB')">SUB[out]/[in] Sost.</button>
-      <button class="shortcut-btn btn-libero" onclick="typeShortcut('LIB')">LIB[lib]/[cen] Libero</button>
-      {% if sd.libero %}
-      <button class="shortcut-btn btn-libero" id="autoLibBtn" onclick="sendCmd('AUTOLIB')">
-        Auto-LIB: {{ 'ON' if state.auto_libero else 'OFF' }}
-      </button>
-      {% endif %}
-      <button class="shortcut-btn" onclick="sendCmd('PE')">PE Punto Avv.</button>
-      <button class="shortcut-btn btn-undo" onclick="sendCmd('UNDO')">↩ UNDO</button>
+
+    <!-- Controlli tastiera fisica (modalità PC) -->
+    <div id="keyboardControls">
+      <input type="text"
+             id="cmdInput"
+             class="cmd-input-field"
+             placeholder="Digita comando e premi INVIO  (es: S81  A10  B7  SUB10/12)"
+             autocomplete="off"
+             autocorrect="off"
+             spellcheck="false"
+             autofocus>
+      <div class="cmd-shortcuts">
+        <button class="shortcut-btn" onclick="typeShortcut('S')">S[n] Ace</button>
+        <button class="shortcut-btn" onclick="typeShortcut('SE')">SE[n] Err.Serv.</button>
+        <button class="shortcut-btn" onclick="typeShortcut('A')">A[n] Kill</button>
+        <button class="shortcut-btn" onclick="typeShortcut('AN')">AN[n] In campo</button>
+        <button class="shortcut-btn" onclick="typeShortcut('AE')">AE[n] Err.Att.</button>
+        <button class="shortcut-btn" onclick="typeShortcut('AB')">AB[n] Murato pt</button>
+        <button class="shortcut-btn" onclick="typeShortcut('ABN')">ABN[n] Murato campo</button>
+        <button class="shortcut-btn" onclick="typeShortcut('B')">B[n] Muro</button>
+        <button class="shortcut-btn" onclick="typeShortcut('R+')">R+[n] Ric.att</button>
+        <button class="shortcut-btn" onclick="typeShortcut('R-')">R-[n] Ric.neg</button>
+        <button class="shortcut-btn" onclick="typeShortcut('RE')">RE[n] Ace sub.</button>
+        <button class="shortcut-btn btn-setter" onclick="sendCmd('W1')">W1</button>
+        <button class="shortcut-btn btn-setter" onclick="sendCmd('W2')">W2</button>
+        <button class="shortcut-btn btn-setter" onclick="sendCmd('W3')">W3</button>
+        <button class="shortcut-btn btn-setter" onclick="sendCmd('W4')">W4</button>
+        <button class="shortcut-btn btn-setter" onclick="sendCmd('W5')">W5</button>
+        <button class="shortcut-btn btn-setter" onclick="sendCmd('W6')">W6</button>
+        <button class="shortcut-btn" onclick="typeShortcut('SUB')">SUB[out]/[in] Sost.</button>
+        <button class="shortcut-btn btn-libero" onclick="typeShortcut('LIB')">LIB[lib]/[cen] Libero</button>
+        {% if sd.libero %}
+        <button class="shortcut-btn btn-libero" id="autoLibBtn" onclick="sendCmd('AUTOLIB')">
+          Auto-LIB: {{ 'ON' if state.auto_libero else 'OFF' }}
+        </button>
+        {% endif %}
+        <button class="shortcut-btn" onclick="sendCmd('PE')">PE Punto Avv.</button>
+        <button class="shortcut-btn btn-undo" onclick="sendCmd('UNDO')">↩ UNDO</button>
+      </div>
+    </div>
+
+    <!-- Tastierino touch (modalità Tablet) -->
+    <div id="touchPad" class="touch-pad" style="display:none">
+      <div class="touch-action-groups">
+        <div class="touch-group">
+          <div class="touch-group-title">Servizio</div>
+          <div class="touch-group-buttons">
+            <button class="touch-btn" onclick="touchAction('S')">S<small>Ace</small></button>
+            <button class="touch-btn touch-btn-err" onclick="touchAction('SE')">SE<small>Errore</small></button>
+          </div>
+        </div>
+        <div class="touch-group">
+          <div class="touch-group-title">Attacco</div>
+          <div class="touch-group-buttons">
+            <button class="touch-btn" onclick="touchAction('A')">A<small>Punto</small></button>
+            <button class="touch-btn" onclick="touchAction('AN')">AN<small>Campo</small></button>
+            <button class="touch-btn touch-btn-err" onclick="touchAction('AE')">AE<small>Errore</small></button>
+            <button class="touch-btn touch-btn-err" onclick="touchAction('AB')">AB<small>Murato pt</small></button>
+            <button class="touch-btn" onclick="touchAction('ABN')">ABN<small>Murato camp</small></button>
+          </div>
+        </div>
+        <div class="touch-group">
+          <div class="touch-group-title">Muro</div>
+          <div class="touch-group-buttons">
+            <button class="touch-btn" onclick="touchAction('B')">B<small>Punto</small></button>
+            <button class="touch-btn touch-btn-err" onclick="touchAction('BE')">BE<small>Errore</small></button>
+          </div>
+        </div>
+        <div class="touch-group">
+          <div class="touch-group-title">Ricezione</div>
+          <div class="touch-group-buttons">
+            <button class="touch-btn touch-btn-pos" onclick="touchAction('R+')">R+<small>Positiva</small></button>
+            <button class="touch-btn touch-btn-err" onclick="touchAction('R-')">R-<small>Negativa</small></button>
+            <button class="touch-btn touch-btn-err" onclick="touchAction('RE')">RE<small>Ace sub.</small></button>
+          </div>
+        </div>
+        <div class="touch-group">
+          <div class="touch-group-title">Difesa</div>
+          <div class="touch-group-buttons">
+            <button class="touch-btn" onclick="touchAction('D')">D<small>Difesa</small></button>
+            <button class="touch-btn touch-btn-err" onclick="touchAction('DE')">DE<small>Errore</small></button>
+          </div>
+        </div>
+        <div class="touch-group">
+          <div class="touch-group-title">Palleggio</div>
+          <div class="touch-group-buttons">
+            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W1')">W1</button>
+            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W2')">W2</button>
+            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W3')">W3</button>
+            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W4')">W4</button>
+            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W5')">W5</button>
+            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W6')">W6</button>
+          </div>
+        </div>
+        <div class="touch-group">
+          <div class="touch-group-title">Altro</div>
+          <div class="touch-group-buttons">
+            <button class="touch-btn" onclick="sendCmd('P')">P<small>Punto</small></button>
+            <button class="touch-btn touch-btn-err" onclick="sendCmd('PE')">PE<small>Punto Avv.</small></button>
+            <button class="touch-btn" onclick="sendCmd('T')">T<small>Timeout</small></button>
+            <button class="touch-btn" onclick="sendCmd('TO')">TO<small>TO Avv.</small></button>
+            <button class="touch-btn touch-btn-libero" onclick="touchAction('SUB')">SUB<small>out/in</small></button>
+            <button class="touch-btn touch-btn-libero" onclick="touchAction('LIB')">LIB<small>lib/cen</small></button>
+            {% if sd.libero %}
+            <button class="touch-btn touch-btn-libero" id="autoLibBtnTouch" onclick="sendCmd('AUTOLIB')">Auto-LIB<small>{{ 'ON' if state.auto_libero else 'OFF' }}</small></button>
+            {% endif %}
+            <button class="touch-btn touch-btn-undo" onclick="sendCmd('UNDO')">↩<small>UNDO</small></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="touch-pad-bottom">
+        <div class="touch-digit-grid">
+          <button class="touch-digit" onclick="touchDigit('1')">1</button>
+          <button class="touch-digit" onclick="touchDigit('2')">2</button>
+          <button class="touch-digit" onclick="touchDigit('3')">3</button>
+          <button class="touch-digit" onclick="touchDigit('4')">4</button>
+          <button class="touch-digit" onclick="touchDigit('5')">5</button>
+          <button class="touch-digit" onclick="touchDigit('6')">6</button>
+          <button class="touch-digit" onclick="touchDigit('7')">7</button>
+          <button class="touch-digit" onclick="touchDigit('8')">8</button>
+          <button class="touch-digit" onclick="touchDigit('9')">9</button>
+          <button class="touch-digit touch-digit-op" onclick="touchSlash()">/</button>
+          <button class="touch-digit" onclick="touchDigit('0')">0</button>
+          <button class="touch-digit touch-digit-op" onclick="touchBackspace()">⌫</button>
+        </div>
+        <div class="touch-controls-row">
+          <button class="touch-clear-btn" onclick="touchClear()">C Cancella</button>
+          <button class="touch-send-btn" onclick="touchSend()">✓ INVIA</button>
+        </div>
+      </div>
     </div>
   </div>
   {% endif %}
@@ -264,6 +373,75 @@ function typeShortcut(prefix) {
   preview.textContent = prefix;
 }
 
+// ── Tastierino touch (modalità Tablet) ────────────────────────
+function touchAction(code) {
+  if (!input) return;
+  input.value = code;
+  preview.textContent = code;
+}
+function touchDigit(d) {
+  if (!input) return;
+  input.value += d;
+  preview.textContent = input.value || 'Pronto...';
+}
+function touchSlash() {
+  if (!input) return;
+  input.value += '/';
+  preview.textContent = input.value || 'Pronto...';
+}
+function touchBackspace() {
+  if (!input) return;
+  input.value = input.value.slice(0, -1);
+  preview.textContent = input.value || 'Pronto...';
+}
+function touchClear() {
+  if (!input) return;
+  input.value = '';
+  preview.textContent = 'Pronto...';
+}
+function touchSend() {
+  if (!input) return;
+  sendCmd(input.value.trim());
+}
+
+// ── Modalità Tablet / PC ───────────────────────────────────────
+const MODE_KEY = 'vsInputMode';
+
+function applyMode(mode) {
+  const isTouch = mode === 'touch';
+  const kb = document.getElementById('keyboardControls');
+  const tp = document.getElementById('touchPad');
+  if (kb) kb.style.display = isTouch ? 'none' : '';
+  if (tp) tp.style.display = isTouch ? '' : 'none';
+  document.body.classList.toggle('touch-mode-active', isTouch);
+  const btn = document.getElementById('modeToggleBtn');
+  if (btn) btn.textContent = isTouch ? '⌨ PC' : '📱 Tablet';
+  if (!isTouch && input) input.focus();
+}
+
+function setMode(mode) {
+  localStorage.setItem(MODE_KEY, mode);
+  applyMode(mode);
+  const m = document.getElementById('modeModal');
+  if (m) m.style.display = 'none';
+}
+
+function toggleMode() {
+  const cur = localStorage.getItem(MODE_KEY) || 'keyboard';
+  setMode(cur === 'touch' ? 'keyboard' : 'touch');
+}
+
+(function initMode() {
+  const stored = localStorage.getItem(MODE_KEY);
+  if (!stored) {
+    const m = document.getElementById('modeModal');
+    if (m) m.style.display = 'flex';
+    applyMode('keyboard');
+  } else {
+    applyMode(stored);
+  }
+})();
+
 function sendCmd(cmd) {
   if (!cmd) return;
   fetch(`/c/${CAT_ID}/partita/${MATCH_ID}/set/${SET_NUM}/comando`, {
@@ -341,6 +519,8 @@ function updateUI(state) {
   // Toggle giro automatico centrale-libero
   const alBtn = document.getElementById('autoLibBtn');
   if (alBtn) alBtn.textContent = 'Auto-LIB: ' + (state.auto_libero ? 'ON' : 'OFF');
+  const alBtnT = document.getElementById('autoLibBtnTouch');
+  if (alBtnT) alBtnT.innerHTML = 'Auto-LIB<small>' + (state.auto_libero ? 'ON' : 'OFF') + '</small>';
 
   // Timeout
   const toUs = document.getElementById('toUs');
@@ -464,9 +644,10 @@ function cycleOrientation() {
 
 applyOrientation();
 
-// Focus automatico sull'input
-if (input) input.focus();
+// Focus automatico sull'input (solo in modalità PC, per non aprire
+// la tastiera virtuale sopra il tastierino touch)
 document.addEventListener('keypress', e => {
+  if (input && document.body.classList.contains('touch-mode-active')) return;
   if (input && document.activeElement !== input &&
       !['INPUT','BUTTON','SELECT','TEXTAREA'].includes(e.target.tagName)) {
     input.focus();
