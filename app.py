@@ -1084,6 +1084,14 @@ def _add_command(cat_id, match_id, set_num):
                 chi = 'Noi' if side == 'us' else 'Avversario'
                 return jsonify(error=f'Timeout esauriti ({chi}: già 2 in questo set)'), 400
 
+    # Validazione: azioni legate a un giocatore (S, A, B, R+, D, ...)
+    # devono riferirsi a un numero realmente in campo in questo momento
+    if ev['type'] in ('point', 'stat') and ev.get('player') is not None:
+        cur = compute_state(sd)
+        lineup = cur['lineup'] if cur else []
+        if ev['player'] not in lineup:
+            return jsonify(error=f"#{ev['player']} non è in campo — azione non valida"), 400
+
     # max+1 e non len+1: dopo un UNDO len+1 produrrebbe id duplicati
     ev['id']        = max((e.get('id', 0) for e in sd['events']), default=0) + 1
     ev['timestamp'] = datetime.now().strftime('%H:%M:%S')
