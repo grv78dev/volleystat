@@ -82,7 +82,8 @@
         {% set pnum = cur[pidx-1] if cur|length >= pidx else None %}
         {% set line = 'front' if pidx in [2,3,4] else 'back' %}
         <div class="court-player {% if pnum == state.server %}player-serving{% endif %}"
-             data-pos="{{ pidx }}" data-line="{{ line }}" id="fieldPos{{ pidx }}">
+             data-pos="{{ pidx }}" data-line="{{ line }}" id="fieldPos{{ pidx }}"
+             {% if pnum %}onclick="touchPickCourt({{ pnum }})"{% endif %}>
           {% if pnum %}
           <span class="cp-num">#{{ pnum }}</span>
           <span class="cp-name">{{ p_by_num.get(pnum, {}).get('name', '?')|truncate(8, True, '') }}</span>
@@ -175,16 +176,47 @@
     </div>
 
     <!-- Tastierino touch (modalità Tablet) -->
+    <!-- Flusso: 1) tocco il giocatore nel campo (spostato qui dentro in JS)
+         2) tocco l'azione che ha fatto. Le azioni di squadra (punto, timeout,
+         zona palleggiatore, UNDO...) non richiedono un giocatore e restano
+         sempre visibili nella barra in alto. -->
     <div id="touchPad" class="touch-pad" style="display:none">
-      <div class="touch-action-groups" id="touchActionGroups">
-        <div class="touch-group">
+
+      <div class="touch-team-row" id="touchTeamRow">
+        <button class="touch-chip" onclick="sendCmd('P')">P<small>Punto</small></button>
+        <button class="touch-chip touch-chip-err" onclick="sendCmd('PE')">PE<small>Punto avv.</small></button>
+        <button class="touch-chip" onclick="sendCmd('T')">T<small>Timeout</small></button>
+        <button class="touch-chip" onclick="sendCmd('TO')">TO<small>TO avv.</small></button>
+        <button class="touch-chip touch-chip-setter" onclick="sendCmd('W1')">W1</button>
+        <button class="touch-chip touch-chip-setter" onclick="sendCmd('W2')">W2</button>
+        <button class="touch-chip touch-chip-setter" onclick="sendCmd('W3')">W3</button>
+        <button class="touch-chip touch-chip-setter" onclick="sendCmd('W4')">W4</button>
+        <button class="touch-chip touch-chip-setter" onclick="sendCmd('W5')">W5</button>
+        <button class="touch-chip touch-chip-setter" onclick="sendCmd('W6')">W6</button>
+        {% if sd.libero %}
+        <button class="touch-chip touch-chip-libero" id="autoLibBtnTouch" onclick="sendCmd('AUTOLIB')">Auto-LIB<small>{{ 'ON' if state.auto_libero else 'OFF' }}</small></button>
+        {% endif %}
+        <button class="touch-chip touch-chip-undo" onclick="sendCmd('UNDO')">↩<small>UNDO</small></button>
+        <button class="touch-chip touch-chip-manual" onclick="touchOpenManual()">⌨<small>Manuale</small></button>
+      </div>
+
+      <div class="touch-hint" id="touchHint">👆 Tocca un giocatore in campo qui sopra per registrare la sua azione</div>
+
+      <div class="touch-selected-bar" id="touchSelectedBar" style="display:none">
+        <span id="touchSelectedLabel"></span>
+        <button class="tps-cancel" onclick="touchDeselectPlayer()">✕ Cambia</button>
+      </div>
+
+      <!-- STEP: azione per il giocatore selezionato -->
+      <div class="touch-action-groups" id="touchActionGroups" style="display:none">
+        <div class="touch-group" data-group="servizio">
           <div class="touch-group-title">Servizio</div>
           <div class="touch-group-buttons">
             <button class="touch-btn" onclick="touchAction('S')">S<small>Ace</small></button>
             <button class="touch-btn touch-btn-err" onclick="touchAction('SE')">SE<small>Errore</small></button>
           </div>
         </div>
-        <div class="touch-group">
+        <div class="touch-group" data-group="attacco">
           <div class="touch-group-title">Attacco</div>
           <div class="touch-group-buttons">
             <button class="touch-btn" onclick="touchAction('A')">A<small>Punto</small></button>
@@ -194,7 +226,7 @@
             <button class="touch-btn" onclick="touchAction('ABN')">ABN<small>Murato camp</small></button>
           </div>
         </div>
-        <div class="touch-group">
+        <div class="touch-group" data-group="muro">
           <div class="touch-group-title">Muro</div>
           <div class="touch-group-buttons">
             <button class="touch-btn" onclick="touchAction('B')">B<small>Punto</small></button>
@@ -202,7 +234,7 @@
             <button class="touch-btn" onclick="touchAction('BN')">BN<small>Muro camp</small></button>
           </div>
         </div>
-        <div class="touch-group">
+        <div class="touch-group" data-group="ricezione">
           <div class="touch-group-title">Ricezione</div>
           <div class="touch-group-buttons">
             <button class="touch-btn touch-btn-pos" onclick="touchAction('R+')">R+<small>Positiva</small></button>
@@ -210,49 +242,29 @@
             <button class="touch-btn touch-btn-err" onclick="touchAction('RE')">RE<small>Ace sub.</small></button>
           </div>
         </div>
-        <div class="touch-group">
+        <div class="touch-group" data-group="difesa">
           <div class="touch-group-title">Difesa</div>
           <div class="touch-group-buttons">
             <button class="touch-btn" onclick="touchAction('D')">D<small>Difesa</small></button>
             <button class="touch-btn touch-btn-err" onclick="touchAction('DE')">DE<small>Errore</small></button>
           </div>
         </div>
-        <div class="touch-group">
-          <div class="touch-group-title">Palleggio</div>
+        <div class="touch-group" data-group="sostituzioni">
+          <div class="touch-group-title">Sostituzioni</div>
           <div class="touch-group-buttons">
-            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W1')">W1</button>
-            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W2')">W2</button>
-            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W3')">W3</button>
-            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W4')">W4</button>
-            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W5')">W5</button>
-            <button class="touch-btn touch-btn-setter" onclick="sendCmd('W6')">W6</button>
-          </div>
-        </div>
-        <div class="touch-group">
-          <div class="touch-group-title">Altro</div>
-          <div class="touch-group-buttons">
-            <button class="touch-btn" onclick="sendCmd('P')">P<small>Punto</small></button>
-            <button class="touch-btn touch-btn-err" onclick="sendCmd('PE')">PE<small>Punto Avv.</small></button>
-            <button class="touch-btn" onclick="sendCmd('T')">T<small>Timeout</small></button>
-            <button class="touch-btn" onclick="sendCmd('TO')">TO<small>TO Avv.</small></button>
-            <button class="touch-btn touch-btn-libero" onclick="touchAction('SUB')">SUB<small>out/in</small></button>
-            <button class="touch-btn touch-btn-libero" onclick="touchAction('LIB')">LIB<small>lib/cen</small></button>
-            {% if sd.libero %}
-            <button class="touch-btn touch-btn-libero" id="autoLibBtnTouch" onclick="sendCmd('AUTOLIB')">Auto-LIB<small>{{ 'ON' if state.auto_libero else 'OFF' }}</small></button>
-            {% endif %}
-            <button class="touch-btn touch-btn-undo" onclick="sendCmd('UNDO')">↩<small>UNDO</small></button>
+            <button class="touch-btn touch-btn-libero" onclick="touchStartSub()">SUB<small>esce lui</small></button>
+            <button class="touch-btn touch-btn-libero" onclick="touchStartLib()">LIB<small>lib/cen</small></button>
           </div>
         </div>
       </div>
 
-      <!-- STEP 2: scelta giocatore (sostituisce la digitazione del numero) -->
+      <!-- STEP: scelta giocatore in entrata (per SUB/LIB) -->
       <div class="touch-player-step" id="touchPlayerStep" style="display:none">
         <div class="tps-header">
           <span class="tps-label" id="tpsLabel">Chi?</span>
           <button class="tps-cancel" onclick="touchCancelPick()">✕ Annulla</button>
         </div>
         <div class="tps-grid" id="tpsGrid"></div>
-        <button class="tps-manual-link" onclick="touchOpenManual()">⌨ Inserimento manuale</button>
       </div>
 
       <div class="touch-pad-bottom" id="touchManualPad" style="display:none">
@@ -273,7 +285,7 @@
         <div class="touch-controls-row">
           <button class="touch-clear-btn" onclick="touchClear()">C Cancella</button>
           <button class="touch-send-btn" onclick="touchSend()">✓ INVIA</button>
-          <button class="tps-cancel" onclick="touchCloseManual()">← Torna ai giocatori</button>
+          <button class="tps-cancel" onclick="touchCloseManual()">← Indietro</button>
         </div>
       </div>
     </div>
@@ -390,21 +402,20 @@ function typeShortcut(prefix) {
 }
 
 // ── Tastierino touch (modalità Tablet) ──────────────────────────
-// Flusso: 1) tocco l'azione (es. "A")  2) tocco il giocatore in campo
-// o in panchina, invece di digitare il numero. Un tastierino manuale
-// resta disponibile come scappatoia per casi non previsti.
-const ACTION_LABELS = {
-  'S':'Ace','SE':'Errore servizio','A':'Kill','AN':'Attacco in campo',
-  'AE':'Errore attacco','AB':'Murato — punto avv.','ABN':'Murato — palla in gioco',
-  'B':'Muro punto','BE':'Errore muro','BN':'Muro — palla in gioco',
-  'R+':'Ricezione positiva','R-':'Ricezione negativa','RE':'Ace subito',
-  'D':'Difesa','DE':'Errore difesa'
+// Flusso: 1) tocco il giocatore nel campo (il campo viene spostato qui
+// dentro via JS in applyMode())  2) tocco l'azione che ha fatto. Le
+// sostituzioni (SUB/LIB) partono dal giocatore già selezionato ("chi
+// esce") e chiedono solo chi entra. Un tastierino manuale resta
+// disponibile come scappatoia per casi non previsti.
+const GROUP_ORDER = {
+  server:  ['servizio','attacco','muro','ricezione','difesa','sostituzioni'],
+  front:   ['attacco','muro','servizio','ricezione','difesa','sostituzioni'],
+  back:    ['ricezione','difesa','servizio','attacco','muro','sostituzioni']
 };
-const ONE_PLAYER_CODES = Object.keys(ACTION_LABELS);
 
-let touchStep   = 'action'; // 'action' | 'single' | 'out' | 'in'
-let touchCode   = null;     // codice azione in corso (es. 'A', 'SUB', 'LIB')
-let touchOutNum = null;     // per SUB/LIB: numero di chi esce
+let touchSelectedPlayer = null; // numero del giocatore toccato in campo
+let touchCode   = null;         // 'SUB' | 'LIB', mentre si sceglie chi entra
+let touchOutNum = null;         // per SUB/LIB: numero di chi esce
 
 function currentLineup() {
   return ((LAST_STATE && LAST_STATE.lineup) || []).filter(n => n);
@@ -415,22 +426,63 @@ function playerLabel(num) {
   return info ? esc(info.name.split(' ')[0]) : '';
 }
 
+function touchPickCourt(num) {
+  if (!document.body.classList.contains('touch-mode-active') || !num) return;
+  touchSelectedPlayer = num;
+  const info = P_BY_NUM[num];
+  document.getElementById('touchSelectedLabel').innerHTML =
+    `<span class="tps-num">#${num}</span> ${info ? esc(info.name) : ''}`;
+  document.getElementById('touchHint').style.display = 'none';
+  document.getElementById('touchSelectedBar').style.display = '';
+  document.getElementById('touchActionGroups').style.display = '';
+  document.getElementById('touchPlayerStep').style.display = 'none';
+  document.getElementById('touchManualPad').style.display = 'none';
+  reorderActionGroups(num);
+  preview.textContent = `#${num} — scegli l'azione`;
+}
+
+function reorderActionGroups(num) {
+  const lu = currentLineup();
+  const pidx = lu.indexOf(num) + 1;
+  const isServer = LAST_STATE && LAST_STATE.server === num;
+  const key = isServer ? 'server' : ([2,3,4].includes(pidx) ? 'front' : 'back');
+  const order = GROUP_ORDER[key];
+  document.querySelectorAll('#touchActionGroups .touch-group[data-group]').forEach(g => {
+    const i = order.indexOf(g.dataset.group);
+    g.style.order = i === -1 ? 99 : i;
+  });
+}
+
+function touchDeselectPlayer() {
+  resetToHome();
+}
+
 function touchAction(code) {
-  if (ONE_PLAYER_CODES.includes(code)) {
-    touchCode = code; touchStep = 'single'; touchOutNum = null;
-    openPlayerStep(`${code} — ${ACTION_LABELS[code]}: chi?`, currentLineup());
-    return;
-  }
-  if (code === 'SUB') {
-    touchCode = 'SUB'; touchStep = 'out'; touchOutNum = null;
-    openPlayerStep('Sostituzione: chi esce dal campo?', currentLineup());
-    return;
-  }
-  if (code === 'LIB') {
-    if (!LIBERO_NUM) { showFeedback('Nessun libero impostato per questo set', 'error'); return; }
-    touchCode = 'LIB'; touchStep = 'out'; touchOutNum = null;
-    openPlayerStep('Cambio libero: chi esce dal campo?', currentLineup());
-    return;
+  if (!touchSelectedPlayer) { showFeedback('Tocca prima un giocatore in campo', 'error'); return; }
+  sendCmd(code + touchSelectedPlayer);
+  resetToHome();
+}
+
+function touchStartSub() {
+  if (!touchSelectedPlayer) return;
+  touchCode = 'SUB'; touchOutNum = touchSelectedPlayer;
+  const onCourt = new Set(currentLineup());
+  const bench = Object.keys(P_BY_NUM).map(Number)
+    .filter(n => !onCourt.has(n) && n !== LIBERO_NUM);
+  openPlayerStep(`Sostituzione: chi entra al posto di #${touchOutNum}?`, bench);
+}
+
+function touchStartLib() {
+  if (!touchSelectedPlayer) return;
+  if (!LIBERO_NUM) { showFeedback('Nessun libero impostato per questo set', 'error'); return; }
+  if (touchSelectedPlayer === LIBERO_NUM) {
+    touchCode = 'LIB'; touchOutNum = LIBERO_NUM;
+    const onCourt = new Set(currentLineup());
+    const bench = Object.keys(P_BY_NUM).map(Number).filter(n => !onCourt.has(n));
+    openPlayerStep('Cambio libero: chi rientra al posto del libero?', bench);
+  } else {
+    sendCmd(`LIB${touchSelectedPlayer}/${LIBERO_NUM}`);
+    resetToHome();
   }
 }
 
@@ -442,72 +494,49 @@ function openPlayerStep(label, nums) {
       <span class="tps-num">#${n}</span>
       <span class="tps-name">${playerLabel(n)}</span>
     </button>`).join('') || '<p class="empty-msg">Nessun giocatore disponibile</p>';
+  document.getElementById('touchTeamRow').style.display = 'none';
+  document.getElementById('touchHint').style.display = 'none';
+  document.getElementById('touchSelectedBar').style.display = 'none';
   document.getElementById('touchActionGroups').style.display = 'none';
-  document.getElementById('touchPlayerStep').style.display = '';
   document.getElementById('touchManualPad').style.display = 'none';
+  document.getElementById('touchPlayerStep').style.display = '';
   preview.textContent = label;
 }
 
-function closePlayerStep() {
-  touchStep = 'action'; touchCode = null; touchOutNum = null;
-  document.getElementById('touchActionGroups').style.display = '';
+function resetToHome() {
+  touchSelectedPlayer = null; touchCode = null; touchOutNum = null;
+  document.getElementById('touchTeamRow').style.display = '';
+  document.getElementById('touchHint').style.display = '';
+  document.getElementById('touchSelectedBar').style.display = 'none';
+  document.getElementById('touchActionGroups').style.display = 'none';
   document.getElementById('touchPlayerStep').style.display = 'none';
+  document.getElementById('touchManualPad').style.display = 'none';
   preview.textContent = 'Pronto...';
 }
 
 function pickPlayer(num) {
-  if (touchStep === 'single') {
-    sendCmd(touchCode + num);
-    closePlayerStep();
-    return;
-  }
-  if (touchStep === 'out') {
-    touchOutNum = num;
-    if (touchCode === 'SUB') {
-      const onCourt = new Set(currentLineup());
-      const bench = Object.keys(P_BY_NUM).map(Number)
-        .filter(n => !onCourt.has(n) && n !== LIBERO_NUM);
-      touchStep = 'in';
-      openPlayerStep(`Sostituzione: chi entra al posto di #${num}?`, bench);
-      return;
-    }
-    if (touchCode === 'LIB') {
-      if (num === LIBERO_NUM) {
-        const onCourt = new Set(currentLineup());
-        const bench = Object.keys(P_BY_NUM).map(Number).filter(n => !onCourt.has(n));
-        touchStep = 'in';
-        openPlayerStep(`Cambio libero: chi rientra al posto di #${num}?`, bench);
-      } else {
-        sendCmd(`LIB${num}/${LIBERO_NUM}`);
-        closePlayerStep();
-      }
-      return;
-    }
-  }
-  if (touchStep === 'in') {
-    sendCmd(`${touchCode}${touchOutNum}/${num}`);
-    closePlayerStep();
-  }
+  // usato solo per lo step "chi entra" di SUB/LIB
+  sendCmd(`${touchCode}${touchOutNum}/${num}`);
+  resetToHome();
 }
 
 function touchCancelPick() {
-  closePlayerStep();
+  resetToHome();
 }
 
 // ── Tastierino manuale (scappatoia) ─────────────────────────────
 function touchOpenManual() {
+  document.getElementById('touchTeamRow').style.display = 'none';
+  document.getElementById('touchHint').style.display = 'none';
+  document.getElementById('touchSelectedBar').style.display = 'none';
+  document.getElementById('touchActionGroups').style.display = 'none';
   document.getElementById('touchPlayerStep').style.display = 'none';
   document.getElementById('touchManualPad').style.display = '';
-  input.value = touchCode || '';
-  preview.textContent = input.value || 'Pronto...';
+  input.value = '';
+  preview.textContent = 'Pronto...';
 }
 function touchCloseManual() {
-  document.getElementById('touchManualPad').style.display = 'none';
-  if (touchCode) {
-    document.getElementById('touchPlayerStep').style.display = '';
-  } else {
-    document.getElementById('touchActionGroups').style.display = '';
-  }
+  resetToHome();
 }
 function touchDigit(d) {
   if (!input) return;
@@ -532,8 +561,7 @@ function touchClear() {
 function touchSend() {
   if (!input) return;
   sendCmd(input.value.trim());
-  closePlayerStep();
-  document.getElementById('touchManualPad').style.display = 'none';
+  resetToHome();
 }
 
 // ── Modalità Tablet / PC ───────────────────────────────────────
@@ -543,9 +571,16 @@ function applyMode(mode) {
   const isTouch = mode === 'touch';
   const kb = document.getElementById('keyboardControls');
   const tp = document.getElementById('touchPad');
+  const courtSection = document.getElementById('courtSection');
+  const setLayout = document.querySelector('.set-layout');
   if (kb) kb.style.display = isTouch ? 'none' : '';
   if (tp) tp.style.display = isTouch ? '' : 'none';
+  if (courtSection) {
+    if (isTouch && tp) tp.insertBefore(courtSection, tp.firstChild);
+    else if (!isTouch && setLayout) setLayout.insertBefore(courtSection, setLayout.firstChild);
+  }
   document.body.classList.toggle('touch-mode-active', isTouch);
+  if (isTouch) resetToHome();
   const btn = document.getElementById('modeToggleBtn');
   if (btn) btn.textContent = isTouch ? '⌨ PC' : '📱 Tablet';
   if (!isTouch && input) input.focus();
@@ -630,7 +665,13 @@ function updateUI(state) {
          <span class="cp-name">${info ? esc(info.name.split(' ')[0]) : '?'}</span>
          <span class="cp-role">${info ? esc(info.role) : ''}</span>`
       : '—';
+    cell.onclick = pnum ? (() => touchPickCourt(pnum)) : null;
   });
+  // se il giocatore selezionato è uscito dal campo (sostituzione da
+  // un altro dispositivo), torna alla schermata iniziale
+  if (touchSelectedPlayer && !currentLineup().includes(touchSelectedPlayer)) {
+    resetToHome();
+  }
 
   // Pallini servizio sullo scoreboard
   const dotUs   = document.getElementById('serveDotUs');
