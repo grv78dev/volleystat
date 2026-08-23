@@ -85,7 +85,7 @@
              data-pos="{{ pidx }}" data-line="{{ line }}" id="fieldPos{{ pidx }}"
              {% if pnum %}onclick="touchPickCourt({{ pnum }})"{% endif %}>
           {% if pnum %}
-          <span class="cp-num">#{{ pnum }}</span>
+          <span class="cp-num {% if p_by_num.get(pnum, {}).get('role') == 'L' %}num-libero{% endif %}">#{{ pnum }}</span>
           <span class="cp-name">{{ p_by_num.get(pnum, {}).get('name', '?')|truncate(8, True, '') }}</span>
           <span class="cp-role">{{ p_by_num.get(pnum, {}).get('role', '') }}</span>
           {% else %}—{% endif %}
@@ -426,12 +426,17 @@ function playerLabel(num) {
   return info ? esc(info.name.split(' ')[0]) : '';
 }
 
+function liberoClass(num) {
+  const info = P_BY_NUM[num];
+  return (info && info.role === 'L') ? 'num-libero' : '';
+}
+
 function touchPickCourt(num) {
   if (!document.body.classList.contains('touch-mode-active') || !num) return;
   touchSelectedPlayer = num;
   const info = P_BY_NUM[num];
   document.getElementById('touchSelectedLabel').innerHTML =
-    `<span class="tps-num">#${num}</span> ${info ? esc(info.name) : ''}`;
+    `<span class="tps-num ${liberoClass(num)}">#${num}</span> ${info ? esc(info.name) : ''}`;
   document.getElementById('touchHint').style.display = 'none';
   document.getElementById('touchSelectedBar').style.display = '';
   document.getElementById('touchActionGroups').style.display = '';
@@ -491,7 +496,7 @@ function openPlayerStep(label, nums) {
   const grid = document.getElementById('tpsGrid');
   grid.innerHTML = nums.map(n => `
     <button class="tps-btn" onclick="pickPlayer(${n})">
-      <span class="tps-num">#${n}</span>
+      <span class="tps-num ${liberoClass(n)}">#${n}</span>
       <span class="tps-name">${playerLabel(n)}</span>
     </button>`).join('') || '<p class="empty-msg">Nessun giocatore disponibile</p>';
   document.getElementById('touchTeamRow').style.display = 'none';
@@ -661,7 +666,7 @@ function updateUI(state) {
     cell.className = 'court-player' + (pnum === state.server ? ' player-serving' : '');
     cell.dataset.line = line;
     cell.innerHTML = pnum
-      ? `<span class="cp-num">#${pnum}</span>
+      ? `<span class="cp-num ${liberoClass(pnum)}">#${pnum}</span>
          <span class="cp-name">${info ? esc(info.name.split(' ')[0]) : '?'}</span>
          <span class="cp-role">${info ? esc(info.role) : ''}</span>`
       : '—';
@@ -760,7 +765,7 @@ function renderMiniStats(pstats) {
     const ap = s.att_positivity !== null && s.att_positivity !== undefined ? `<span class="${s.att_positivity>=50?'pct-good':s.att_positivity>=25?'pct-mid':''}">${s.att_positivity}%</span>` : '—';
     const ae = s.att_efficiency !== null && s.att_efficiency !== undefined ? `<span class="${s.att_efficiency>=25?'pct-good':s.att_efficiency<0?'pct-bad':''}">${s.att_efficiency}%</span>` : '—';
     html += `<tr>
-      <td><span class="jersey-num">${n}</span></td>
+      <td><span class="jersey-num ${liberoClass(n)}">${n}</span></td>
       <td class="name-cell">${name}</td>
       <td class="${s.rec_pos>0?'stat-good':''}">${s.rec_pos||0}</td>
       <td>${s.rec_neg||0}</td>

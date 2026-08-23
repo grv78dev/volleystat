@@ -30,6 +30,7 @@
   --info:         #4a9eff;
   --win:          #3aad6e;
   --loss:         #e84455;
+  --libero:       #e94fb0;     /* rosa — numero del libero in tutte le viste */
   --invert:       0;
   --shadow:       0 2px 16px rgba(0,0,0,.5);
   --shadow-md:    0 4px 32px rgba(0,0,0,.6);
@@ -57,6 +58,7 @@
   --info:         #2a7adf;
   --win:          #2a9a5e;
   --loss:         #d83040;
+  --libero:       #d6238f;     /* rosa — numero del libero in tutte le viste */
   --invert:       1;
   --shadow:       0 2px 12px rgba(0,0,0,.10);
   --shadow-md:    0 4px 24px rgba(0,0,0,.14);
@@ -622,7 +624,7 @@ code, kbd, .mono {
 .court-section.orient-right .net-line {
   border-top: none; border-left: 2px dashed var(--border);
   padding: 0 0 0 6px; margin: 0 0 0 4px;
-  writing-mode: vertical-rl; min-width: 24px;
+  writing-mode: vertical-rl; text-orientation: sideways; min-width: 24px;
   display: flex; align-items: center; justify-content: center;
 }
 
@@ -636,7 +638,7 @@ code, kbd, .mono {
 .court-section.orient-left .net-line {
   border-top: none; border-right: 2px dashed var(--border);
   padding: 0 6px 0 0; margin: 0 4px 0 0;
-  writing-mode: vertical-lr; min-width: 24px;
+  writing-mode: vertical-lr; text-orientation: sideways; min-width: 24px;
   display: flex; align-items: center; justify-content: center;
 }
 
@@ -663,6 +665,7 @@ code, kbd, .mono {
 .court-player[data-line="front"] .cp-num { color: var(--info); }
 .court-player[data-line="back"]  .cp-num { color: var(--success); }
 .court-player.player-serving .cp-num    { color: var(--loss); }
+.num-libero { color: var(--libero) !important; }
 .cp-name { font-size: 10px; color: var(--text-muted); font-family: 'Barlow Condensed', sans-serif; }
 .cp-role { font-size: 9px; background: var(--surface3); border-radius: 2px; padding: 1px 4px; margin-top: 2px; font-family: 'Barlow Condensed', sans-serif; letter-spacing: .04em; }
 .net-line { text-align: center; font-size: 9px; letter-spacing: .2em; color: var(--text-dim); border-top: 2px dashed var(--border); padding-top: 4px; margin-top: 4px; font-family: 'Barlow Condensed', sans-serif; text-transform: uppercase; }
@@ -777,6 +780,23 @@ body.touch-mode-active .live-us, body.touch-mode-active .live-them { padding: 4p
 .touch-pad .court-section .card-header { margin-bottom: 6px; }
 .touch-pad .court-player { min-height: 52px; padding: 5px 4px; cursor: pointer; touch-action: manipulation; }
 .touch-pad .court-player:active { background: var(--surface3); }
+
+/* Rete a destra/sinistra: la griglia diventa 2 colonne × 3 righe, quindi
+   c'è più larghezza per cella — ingrandiamo per sfruttarla e rendere il
+   tap più comodo. */
+.touch-pad .court-section.orient-right .court-player,
+.touch-pad .court-section.orient-left  .court-player {
+  min-height: 92px;
+  padding: 8px 6px;
+}
+.touch-pad .court-section.orient-right .cp-num,
+.touch-pad .court-section.orient-left  .cp-num { font-size: 26px; }
+.touch-pad .court-section.orient-right .cp-name,
+.touch-pad .court-section.orient-left  .cp-name { font-size: 12px; }
+.touch-pad .court-section.orient-right .cp-role,
+.touch-pad .court-section.orient-left  .cp-role { font-size: 10px; }
+.touch-pad .court-section.orient-right .net-line,
+.touch-pad .court-section.orient-left  .net-line { min-width: 30px; font-size: 10px; }
 
 .touch-hint { font-size: 12px; color: var(--text-dim); text-align: center; padding: 4px 0; font-family: 'Barlow Condensed', sans-serif; letter-spacing: .04em; }
 
