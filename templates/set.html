@@ -7,6 +7,9 @@
     <h1>Set {{ set_num }} <span class="subdued">vs {{ match.opponent }}</span></h1>
   </div>
   <div class="header-meta">
+    {% if formation_editable %}
+    <a href="{{ url_for('correggi_formazione_view', cat_id=cat.id, match_id=match.id, set_num=set_num) }}" class="btn btn-sm">✎ Correggi formazione</a>
+    {% endif %}
     <button class="btn btn-sm" id="modeToggleBtn" onclick="toggleMode()">⌨ PC</button>
     <a href="{{ url_for('stats_view', cat_id=cat.id, match_id=match.id) }}" class="btn btn-sm">Stats</a>
     <a href="{{ url_for('report_view', cat_id=cat.id, match_id=match.id) }}" class="btn btn-sm" target="_blank">PDF</a>

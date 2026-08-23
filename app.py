@@ -877,6 +877,64 @@ def match_view(cat_id, match_id):
     return render_template('match.html', cat=cat, match=m,
                            sets=sets, players=players, p_by_num=p_by_num)
 
+def _parse_lineup_form(cat_id, form):
+    """Valida i dati del form formazione iniziale (nuovo set o correzione).
+
+    Ritorna (dict con lineup/libero/palleggiatore/libero_partner/auto_libero, None)
+    oppure (None, messaggio d'errore) se i dati non sono validi.
+    """
+    lineup_raw = form.get('lineup', '')
+    try:
+        lineup = [int(x.strip()) for x in lineup_raw.split(',') if x.strip()]
+        if len(lineup) != 6:
+            return None, 'Servono esattamente 6 giocatori nella formazione'
+    except Exception:
+        return None, 'Formato formazione non valido'
+    if len(set(lineup)) != 6:
+        return None, 'Formazione non valida: numeri di maglia duplicati'
+
+    libero_raw         = form.get('libero', '').strip()
+    palleggiatore_raw  = form.get('palleggiatore', '').strip()
+    partner_raw        = form.get('libero_partner', '').strip()
+    libero          = int(libero_raw)        if libero_raw.isdigit()        else None
+    palleggiatore   = int(palleggiatore_raw) if palleggiatore_raw.isdigit() else None
+    libero_partner  = int(partner_raw)       if partner_raw.isdigit()       else None
+
+    if palleggiatore is not None and palleggiatore not in lineup:
+        return None, 'Il palleggiatore deve essere nella formazione iniziale'
+
+    if libero_partner is not None:
+        if libero is None:
+            return None, 'Il 7° titolare (centrale abbinato) richiede di selezionare anche il libero'
+        if libero_partner == libero:
+            return None, 'Il centrale abbinato al libero deve essere un giocatore diverso dal libero'
+        if (libero in lineup) == (libero_partner in lineup):
+            return None, ('Libero e centrale abbinato: uno dei due deve partire in campo, '
+                          'l\'altro in panchina')
+
+    roster_nums = {p['number'] for p in get_players(cat_id)}
+    if roster_nums:
+        unknown = [n for n in lineup if n not in roster_nums]
+        if libero is not None and libero not in roster_nums:
+            unknown.append(libero)
+        if libero_partner is not None and libero_partner not in roster_nums:
+            unknown.append(libero_partner)
+        if unknown:
+            return None, ('Numeri non presenti in rosa: '
+                          + ', '.join(f'#{n}' for n in unknown))
+
+    auto_libero = form.get('auto_libero') == 'on' and libero is not None
+
+    return {
+        'lineup': lineup, 'libero': libero, 'palleggiatore': palleggiatore,
+        'libero_partner': libero_partner, 'auto_libero': auto_libero,
+    }, None
+
+def _formation_editable(sd):
+    """La formazione iniziale resta correggibile finché il set non ha eventi
+    reali (solo eventuali cambi libero automatici sono tollerati)."""
+    return all(e.get('auto') for e in sd.get('events', []))
+
 @app.route('/c/<cat_id>/partita/<match_id>/nuovo-set', methods=['POST'])
 def new_set(cat_id, match_id):
     cat = get_category(cat_id)
@@ -891,60 +949,22 @@ def new_set(cat_id, match_id):
     if set_num > 5:
         return 'Partita già completa: massimo 5 set', 400
 
-    lineup_raw = request.form.get('lineup','')
-    try:
-        lineup = [int(x.strip()) for x in lineup_raw.split(',') if x.strip()]
-        if len(lineup)!=6:
-            return 'Servono esattamente 6 giocatori nella formazione', 400
-    except Exception:
-        return 'Formato formazione non valido', 400
-    if len(set(lineup)) != 6:
-        return 'Formazione non valida: numeri di maglia duplicati', 400
-
-    libero_raw      = request.form.get('libero','').strip()
-    palleggiatore_raw = request.form.get('palleggiatore','').strip()
-    partner_raw     = request.form.get('libero_partner','').strip()
-    libero          = int(libero_raw)        if libero_raw.isdigit()        else None
-    palleggiatore   = int(palleggiatore_raw) if palleggiatore_raw.isdigit() else None
-    libero_partner  = int(partner_raw)       if partner_raw.isdigit()       else None
-
-    if palleggiatore is not None and palleggiatore not in lineup:
-        return 'Il palleggiatore deve essere nella formazione iniziale', 400
-
-    if libero_partner is not None:
-        if libero is None:
-            return 'Il 7° titolare (centrale abbinato) richiede di selezionare anche il libero', 400
-        if libero_partner == libero:
-            return 'Il centrale abbinato al libero deve essere un giocatore diverso dal libero', 400
-        if (libero in lineup) == (libero_partner in lineup):
-            return ('Libero e centrale abbinato: uno dei due deve partire in campo, '
-                    'l\'altro in panchina'), 400
-
-    roster_nums = {p['number'] for p in get_players(cat_id)}
-    if roster_nums:
-        unknown = [n for n in lineup if n not in roster_nums]
-        if libero is not None and libero not in roster_nums:
-            unknown.append(libero)
-        if libero_partner is not None and libero_partner not in roster_nums:
-            unknown.append(libero_partner)
-        if unknown:
-            return ('Numeri non presenti in rosa: '
-                    + ', '.join(f'#{n}' for n in unknown)), 400
-
-    auto_libero = request.form.get('auto_libero') == 'on' and libero is not None
+    data, err = _parse_lineup_form(cat_id, request.form)
+    if err:
+        return err, 400
 
     sd = {
         'match_id':match_id, 'set_number':set_num,
-        'lineup':lineup,
-        'libero':         libero,
-        'libero_partner': libero_partner,
-        'palleggiatore':  palleggiatore,
-        'auto_libero':    auto_libero,
+        'lineup':data['lineup'],
+        'libero':         data['libero'],
+        'libero_partner': data['libero_partner'],
+        'palleggiatore':  data['palleggiatore'],
+        'auto_libero':    data['auto_libero'],
         'first_serve':request.form.get('first_serve','us'),
         'ruleset':m.get('ruleset','standard'),
         'events':[], 'created_at':datetime.now().isoformat(),
     }
-    if auto_libero:
+    if data['auto_libero']:
         # Centrale già in seconda linea a inizio set → libero entra subito
         _append_auto_libero(cat_id, sd)
     save_set(cat_id, match_id, set_num, sd)
@@ -967,7 +987,48 @@ def set_view(cat_id, match_id, set_num):
     p_by_num = {p['number']: p for p in players}
     return render_template('set.html', cat=cat, match=m, sd=sd,
                            state=compute_state(sd), p_by_num=p_by_num,
-                           set_num=set_num)
+                           set_num=set_num,
+                           formation_editable=_formation_editable(sd))
+
+@app.route('/c/<cat_id>/partita/<match_id>/set/<int:set_num>/correggi-formazione', methods=['GET'])
+def correggi_formazione_view(cat_id, match_id, set_num):
+    cat = get_category(cat_id)
+    matches = get_matches(cat_id)
+    m  = next((x for x in matches if x['id']==match_id), None)
+    sd = get_set(cat_id, match_id, set_num)
+    if not cat or not m or not sd: abort(404)
+    if not _formation_editable(sd):
+        return redirect(url_for('set_view', cat_id=cat_id, match_id=match_id, set_num=set_num))
+    players = get_players(cat_id)
+    p_by_num_json = {p['number']: {'name': p['name'], 'role': p['role']} for p in players}
+    return render_template('correggi_formazione.html', cat=cat, match=m, sd=sd,
+                           players=players, p_by_num_json=p_by_num_json, set_num=set_num)
+
+@app.route('/c/<cat_id>/partita/<match_id>/set/<int:set_num>/correggi-formazione', methods=['POST'])
+def correggi_formazione(cat_id, match_id, set_num):
+    cat = get_category(cat_id)
+    matches = get_matches(cat_id)
+    m  = next((x for x in matches if x['id']==match_id), None)
+    sd = get_set(cat_id, match_id, set_num)
+    if not cat or not m or not sd: abort(404)
+    if not _formation_editable(sd):
+        return 'Formazione non più modificabile: il set ha già eventi registrati. Usa sostituzioni/cambio libero.', 400
+
+    data, err = _parse_lineup_form(cat_id, request.form)
+    if err:
+        return err, 400
+
+    sd['lineup']         = data['lineup']
+    sd['libero']         = data['libero']
+    sd['libero_partner'] = data['libero_partner']
+    sd['palleggiatore']  = data['palleggiatore']
+    sd['auto_libero']    = data['auto_libero']
+    sd['first_serve']    = request.form.get('first_serve', 'us')
+    sd['events']         = []
+    if data['auto_libero']:
+        _append_auto_libero(cat_id, sd)
+    save_set(cat_id, match_id, set_num, sd)
+    return redirect(url_for('set_view', cat_id=cat_id, match_id=match_id, set_num=set_num))
 
 def _libero_partner(sd, lib):
     """Numero del giocatore che il libero ha rimpiazzato (ultimo cambio libero).

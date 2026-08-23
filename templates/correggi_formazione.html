@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}VolleyStat — Correggi formazione{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('set_view', cat_id=cat.id, match_id=match.id, set_num=set_num) }}" class="back-link">← Set {{ set_num }}</a>
+    <h1>Correggi formazione — Set {{ set_num }}</h1>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card-header">
+    <span class="card-icon">✎</span>
+    <h2>Formazione iniziale</h2>
+  </div>
+  <p class="legend-note" style="margin-bottom:14px">Nessuna azione è ancora stata registrata in questo set: puoi correggere liberamente formazione, libero e palleggiatore. Appena viene inserito il primo comando, questa correzione non sarà più disponibile — da quel momento eventuali errori si sistemano con sostituzioni e cambi libero.</p>
+
+  <form method="POST" action="{{ url_for('correggi_formazione', cat_id=cat.id, match_id=match.id, set_num=set_num) }}" class="new-set-form" id="newSetForm">
+
+    <div class="form-group">
+      <label>Chi serve per primo?</label>
+      <div class="radio-row">
+        <label class="radio-label">
+          <input type="radio" name="first_serve" value="us" {% if sd.first_serve != 'them' %}checked{% endif %}> Noi
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="first_serve" value="them" {% if sd.first_serve == 'them' %}checked{% endif %}> {{ match.opponent }}
+        </label>
+      </div>
+    </div>
+
+    <!-- Court builder -->
+    <div class="form-group form-group-full">
+      <label>Formazione Iniziale (trascina / seleziona in ordine di rotazione)</label>
+      <div class="court-builder">
+        <div class="court-grid" id="courtGrid">
+          {% for pos in range(1,7) %}
+          <div class="court-cell" id="cell{{ pos }}"
+               data-pos="{{ pos }}"
+               onclick="selectCell({{ pos }})">
+            <div class="pos-label">P{{ pos }}</div>
+            <div class="pos-player" id="posPlayer{{ pos }}">—</div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="court-legend">
+          <div class="legend-text">
+            <b>Schema campo:</b><br>
+            P4 · P3 · P2<br>
+            P5 · P6 · P1
+          </div>
+          <div class="legend-note">P1 = Primo battitore</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selezione giocatori -->
+    <div class="form-group form-group-full">
+      <label>Clicca posizione → poi seleziona giocatore</label>
+      <div class="player-selector" id="playerSelector">
+        {% for p in players %}
+        <button type="button"
+                class="player-btn {% if p.role=='L' %}libero-btn{% endif %}"
+                data-number="{{ p.number }}"
+                onclick="assignPlayer({{ p.number }}, '{{ p.name|e }}', '{{ p.role }}')">
+          <span class="btn-num">#{{ p.number }}</span>
+          <span class="btn-name">{{ p.name.split()[-1] if p.name else '' }}</span>
+          <span class="btn-role">{{ p.role }}</span>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Palleggiatore (per spostamento)</label>
+      <select name="palleggiatore" class="input">
+        <option value="">— Non rilevare —</option>
+        {% for p in players %}
+        {% if p.role == 'P' %}
+        <option value="{{ p.number }}" {% if sd.palleggiatore == p.number %}selected{% endif %}>#{{ p.number }} {{ p.name }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Libero (opzionale)</label>
+      <select name="libero" class="input">
+        <option value="">— Nessuno —</option>
+        {% for p in players %}
+        {% if p.role == 'L' %}
+        <option value="{{ p.number }}" {% if sd.libero == p.number %}selected{% endif %}>#{{ p.number }} {{ p.name }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      <label class="radio-label" style="margin-top:8px;display:block">
+        <input type="checkbox" name="auto_libero" {% if sd.auto_libero %}checked{% endif %}>
+        Giro automatico centrale-libero
+      </label>
+      <span class="legend-note">Il libero entra/esce da solo per il centrale (ruolo C) in seconda linea</span>
+
+      <label style="margin-top:10px;display:block">7° titolare (centrale abbinato al libero)</label>
+      <select name="libero_partner" class="input">
+        <option value="">— Nessuno —</option>
+        {% for p in players %}
+        {% if p.role == 'C' %}
+        <option value="{{ p.number }}" {% if sd.libero_partner == p.number %}selected{% endif %}>#{{ p.number }} {{ p.name }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      <span class="legend-note">Uno dei due (libero o centrale abbinato) parte in campo, l'altro in panchina: il giro automatico li scambia da subito, senza aspettare il primo cambio manuale</span>
+    </div>
+
+    <input type="hidden" name="lineup" id="lineupInput">
+
+    <div class="form-group form-group-full">
+      <button type="button" onclick="submitLineup()" class="btn btn-accent btn-lg">
+        ✔ Salva correzione
+      </button>
+      <span id="lineupStatus" class="lineup-status"></span>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const lineup = {};
+let selectedCell = null;
+const currentLineup = {{ sd.lineup|tojson }};
+const playersByNum  = {{ p_by_num_json|tojson }};
+
+function selectCell(pos) {
+  selectedCell = pos;
+  document.querySelectorAll('.court-cell').forEach(c => c.classList.remove('selected'));
+  document.getElementById('cell' + pos).classList.add('selected');
+}
+
+function assignPlayer(num, name, role) {
+  if (!selectedCell) {
+    alert('Prima clicca su una casella del campo (P1–P6)');
+    return;
+  }
+  // rimuovi eventuale assegnazione precedente dello stesso giocatore
+  for (let pos in lineup) {
+    if (lineup[pos].num === num && pos != selectedCell) {
+      delete lineup[pos];
+      document.getElementById('posPlayer' + pos).textContent = '—';
+      document.getElementById('cell' + pos).classList.remove('filled');
+    }
+  }
+  lineup[selectedCell] = { num, name, role };
+  document.getElementById('posPlayer' + selectedCell).innerHTML =
+    `<b>#${num}</b><br><small>${name.split(' ').pop()}</small>`;
+  document.getElementById('cell' + selectedCell).classList.add('filled');
+  selectedCell = null;
+  document.querySelectorAll('.court-cell').forEach(c => c.classList.remove('selected'));
+  updateStatus();
+}
+
+function updateStatus() {
+  const filled = Object.keys(lineup).length;
+  const el = document.getElementById('lineupStatus');
+  el.textContent = `${filled}/6 posizioni assegnate`;
+  el.className = 'lineup-status ' + (filled === 6 ? 'status-ok' : '');
+}
+
+function submitLineup() {
+  const keys = ['1','2','3','4','5','6'];
+  for (let k of keys) {
+    if (!lineup[k]) {
+      alert(`Posizione P${k} non assegnata!\nAssegna tutti e 6 i giocatori.`);
+      return;
+    }
+  }
+  const order = keys.map(k => lineup[k].num).join(',');
+  document.getElementById('lineupInput').value = order;
+  document.getElementById('newSetForm').submit();
+}
+
+// Pre-compila la formazione attuale del set
+currentLineup.forEach((num, idx) => {
+  const info = playersByNum[num] || { name: '', role: '' };
+  selectedCell = idx + 1;
+  assignPlayer(num, info.name, info.role);
+});
+</script>
+{% endblock %}
