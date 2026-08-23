@@ -143,6 +143,17 @@
         Giro automatico centrale-libero
       </label>
       <span class="legend-note">Il libero entra/esce da solo per il centrale (ruolo C) in seconda linea</span>
+
+      <label style="margin-top:10px;display:block">7° titolare (centrale abbinato al libero)</label>
+      <select name="libero_partner" class="input">
+        <option value="">— Nessuno —</option>
+        {% for p in players %}
+        {% if p.role == 'C' %}
+        <option value="{{ p.number }}">#{{ p.number }} {{ p.name }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      <span class="legend-note">Uno dei due (libero o centrale abbinato) parte in campo, l'altro in panchina: il giro automatico li scambia da subito, senza aspettare il primo cambio manuale</span>
     </div>
 
     <input type="hidden" name="lineup" id="lineupInput">

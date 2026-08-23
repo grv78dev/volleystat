@@ -903,17 +903,30 @@ def new_set(cat_id, match_id):
 
     libero_raw      = request.form.get('libero','').strip()
     palleggiatore_raw = request.form.get('palleggiatore','').strip()
-    libero        = int(libero_raw)        if libero_raw.isdigit()        else None
-    palleggiatore = int(palleggiatore_raw) if palleggiatore_raw.isdigit() else None
+    partner_raw     = request.form.get('libero_partner','').strip()
+    libero          = int(libero_raw)        if libero_raw.isdigit()        else None
+    palleggiatore   = int(palleggiatore_raw) if palleggiatore_raw.isdigit() else None
+    libero_partner  = int(partner_raw)       if partner_raw.isdigit()       else None
 
     if palleggiatore is not None and palleggiatore not in lineup:
         return 'Il palleggiatore deve essere nella formazione iniziale', 400
+
+    if libero_partner is not None:
+        if libero is None:
+            return 'Il 7° titolare (centrale abbinato) richiede di selezionare anche il libero', 400
+        if libero_partner == libero:
+            return 'Il centrale abbinato al libero deve essere un giocatore diverso dal libero', 400
+        if (libero in lineup) == (libero_partner in lineup):
+            return ('Libero e centrale abbinato: uno dei due deve partire in campo, '
+                    'l\'altro in panchina'), 400
 
     roster_nums = {p['number'] for p in get_players(cat_id)}
     if roster_nums:
         unknown = [n for n in lineup if n not in roster_nums]
         if libero is not None and libero not in roster_nums:
             unknown.append(libero)
+        if libero_partner is not None and libero_partner not in roster_nums:
+            unknown.append(libero_partner)
         if unknown:
             return ('Numeri non presenti in rosa: '
                     + ', '.join(f'#{n}' for n in unknown)), 400
@@ -924,6 +937,7 @@ def new_set(cat_id, match_id):
         'match_id':match_id, 'set_number':set_num,
         'lineup':lineup,
         'libero':         libero,
+        'libero_partner': libero_partner,
         'palleggiatore':  palleggiatore,
         'auto_libero':    auto_libero,
         'first_serve':request.form.get('first_serve','us'),
@@ -956,13 +970,19 @@ def set_view(cat_id, match_id, set_num):
                            set_num=set_num)
 
 def _libero_partner(sd, lib):
-    """Numero del giocatore che il libero ha rimpiazzato (ultimo cambio libero)."""
+    """Numero del giocatore che il libero ha rimpiazzato (ultimo cambio libero).
+
+    Se non c'è ancora nessuno cambio libero in storico (es. il libero è
+    partito titolare in campo), usa il 7° titolare dichiarato a inizio set
+    (`libero_partner`) come compagno di riferimento.
+    """
     for ev in reversed(sd.get('events', [])):
         if ev.get('type') == 'libero_exchange':
             n1, n2 = ev.get('n1'), ev.get('n2')
             if n1 == lib: return n2
             if n2 == lib: return n1
-    return None
+    partner = sd.get('libero_partner')
+    return partner if partner is not None and partner != lib else None
 
 def _find_auto_libero_event(cat_id, sd):
     """Giro automatico centrale-libero: calcola l'eventuale cambio libero
