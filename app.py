@@ -906,8 +906,6 @@ def new_set(cat_id, match_id):
     libero        = int(libero_raw)        if libero_raw.isdigit()        else None
     palleggiatore = int(palleggiatore_raw) if palleggiatore_raw.isdigit() else None
 
-    if libero is not None and libero in lineup:
-        return 'Il libero non può essere nella formazione iniziale', 400
     if palleggiatore is not None and palleggiatore not in lineup:
         return 'Il palleggiatore deve essere nella formazione iniziale', 400
 
