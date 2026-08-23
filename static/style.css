@@ -736,7 +736,20 @@ code, kbd, .mono {
 .btn-undo { color: var(--warn); border-color: var(--warn); }
 
 /* ── Touch pad (modalità Tablet) ──────────────────────────── */
-body.touch-mode-active .main-content { padding-bottom: 46vh; }
+/* In modalità touch lo schermo è diviso ~30% info / ~70% input:
+   campo, log e statistiche live si nascondono per lasciare spazio
+   al tastierino, e il punteggio si compatta. */
+body.touch-mode-active .main-content { padding-bottom: 72vh; }
+body.touch-mode-active .set-layout,
+body.touch-mode-active #miniStatsSection,
+body.touch-mode-active .cmd-ref { display: none; }
+body.touch-mode-active .live-scoreboard {
+  max-height: 30vh;
+  padding: 8px 16px;
+  box-sizing: border-box;
+}
+body.touch-mode-active .live-score { font-size: 56px; }
+body.touch-mode-active .live-us, body.touch-mode-active .live-them { padding: 4px; }
 .touch-pad {
   display: flex;
   flex-direction: column;
@@ -748,7 +761,7 @@ body.touch-mode-active .main-content { padding-bottom: 46vh; }
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   box-shadow: 0 -6px 24px rgba(0,0,0,.3);
   z-index: 250;
-  max-height: 44vh;
+  max-height: 70vh;
   overflow-y: auto;
   touch-action: manipulation;
 }
@@ -813,6 +826,32 @@ body.touch-mode-active .main-content { padding-bottom: 46vh; }
   font-family: 'Barlow Condensed', sans-serif; letter-spacing: .08em; text-transform: uppercase;
 }
 .touch-send-btn:active { background: var(--accent-2); transform: scale(.98); }
+
+/* ── Touch: selezione giocatore (step 2) ──────────────────── */
+.touch-player-step { display: flex; flex-direction: column; gap: 10px; }
+.tps-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tps-label { font-size: 13px; font-weight: 700; color: var(--text); font-family: 'Barlow Condensed', sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+.tps-cancel {
+  border-radius: 6px; border: 1px solid var(--border); background: var(--surface2);
+  color: var(--text-muted); font-weight: 700; padding: 6px 12px; cursor: pointer;
+  font-family: 'Barlow Condensed', sans-serif; letter-spacing: .06em; text-transform: uppercase;
+  touch-action: manipulation; white-space: nowrap;
+}
+.tps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.tps-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 64px; padding: 8px 6px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text); cursor: pointer;
+  transition: transform .08s, background .15s; touch-action: manipulation;
+}
+.tps-btn:active { transform: scale(.94); background: var(--surface3); }
+.tps-num  { font-size: 20px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--accent); }
+.tps-name { font-size: 10px; color: var(--text-muted); font-family: 'Barlow Condensed', sans-serif; }
+.tps-manual-link {
+  align-self: flex-start; background: none; border: none; color: var(--text-dim);
+  font-size: 11px; text-decoration: underline; cursor: pointer; padding: 4px 0;
+  font-family: 'Barlow Condensed', sans-serif; letter-spacing: .04em; touch-action: manipulation;
+}
 
 /* ── Cmd reference ────────────────────────────────────────── */
 .cmd-ref { margin-top: 12px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; transition: border-color .25s; }
