@@ -120,11 +120,6 @@
         <option value="{{ p.number }}">#{{ p.number }} {{ p.name }}</option>
         {% endif %}
         {% endfor %}
-        {% for p in players %}
-        {% if p.role != 'P' and p.role != 'L' %}
-        <option value="{{ p.number }}">#{{ p.number }} {{ p.name }} ({{ p.role }})</option>
-        {% endif %}
-        {% endfor %}
       </select>
     </div>
 
