@@ -745,7 +745,7 @@ def roster_import_csv(cat_id):
     players = get_players(cat_id)
     existing_numbers = {p['number'] for p in players}
     next_id = max((p['id'] for p in players), default=0) + 1
-    VALID_ROLES = {'S', 'O', 'P', 'C', 'L', 'U'}
+    VALID_ROLES = {'P', 'O', 'B', 'C', 'L', 'U'}
 
     imported = 0
     skipped_msgs = []

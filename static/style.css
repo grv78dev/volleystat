@@ -413,9 +413,9 @@ code, kbd, .mono {
   letter-spacing: .06em;
   text-transform: uppercase;
 }
-.role-S { background: rgba(74,158,255,.15);  color: var(--info); }
+.role-P { background: rgba(74,158,255,.15);  color: var(--info); }
 .role-O { background: rgba(232,164,26,.15);  color: var(--warn); }
-.role-P { background: rgba(58,173,110,.15);  color: var(--success); }
+.role-B { background: rgba(58,173,110,.15);  color: var(--success); }
 .role-C { background: rgba(232,68,26,.15);   color: var(--accent); }
 .role-L { background: rgba(232,164,26,.15);  color: var(--warn); }
 .role-U { background: rgba(122,122,150,.15); color: var(--text-muted); }

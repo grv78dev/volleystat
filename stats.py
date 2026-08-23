@@ -39,7 +39,7 @@ SLOT_TO_ZONE = {1:1, 2:2, 3:3, 4:4, 5:5, 6:6}
 # Zona funzionale per ruolo in prima linea (zone 2, 3, 4):
 # indipendentemente dalla rotazione i giocatori si spostano nella propria
 # posizione specializzata prima di attaccare.
-ROLE_FRONT_ZONE = {'C': 3, 'S': 4, 'O': 2}
+ROLE_FRONT_ZONE = {'C': 3, 'B': 4, 'O': 2}
 
 # Rotazioni identificate dalla zona del palleggiatore (convenzione P1..P6).
 # Ordine temporale dopo ogni cambio palla: P1 → P6 → P5 → P4 → P3 → P2.
@@ -432,7 +432,7 @@ def compute_attack_zone_stats(sd, players_by_num=None):
     """
     Heatmap degli attacchi per zona funzionale dell'attaccante.
     La zona di partenza è lo slot corrente → SLOT_TO_ZONE, poi corretta
-    in base al ruolo: in prima linea C→3, S→4, O→2 (specializzazione).
+    in base al ruolo: in prima linea C→3, B→4, O→2 (specializzazione).
     players_by_num: {numero: {'role': ...}} — se None, nessuna correzione.
     """
     events       = sd.get('events', [])

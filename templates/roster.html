@@ -29,9 +29,9 @@
       <div class="form-group">
         <label>Ruolo</label>
         <select name="role" class="input">
-          <option value="S">S — Palleggiatore</option>
+          <option value="P">P — Palleggiatore</option>
           <option value="O">O — Opposto</option>
-          <option value="P">P — Posto 4 (Schiacciatore)</option>
+          <option value="B">B — Banda (Schiacciatore)</option>
           <option value="C">C — Centrale</option>
           <option value="L">L — Libero</option>
           <option value="U">U — Universale</option>
@@ -207,9 +207,9 @@
 
       <p class="csv-instr-title" style="margin-top:14px">Codici ruolo</p>
       <div class="csv-roles-grid">
-        <span class="role-badge role-S">S</span><span>Palleggiatore</span>
+        <span class="role-badge role-P">P</span><span>Palleggiatore</span>
         <span class="role-badge role-O">O</span><span>Opposto</span>
-        <span class="role-badge role-P">P</span><span>Posto 4 — Schiacciatore</span>
+        <span class="role-badge role-B">B</span><span>Banda — Schiacciatore</span>
         <span class="role-badge role-C">C</span><span>Centrale</span>
         <span class="role-badge role-L">L</span><span>Libero</span>
         <span class="role-badge role-U">U</span><span>Universale (default se omesso)</span>
@@ -217,8 +217,8 @@
 
       <p class="csv-instr-title" style="margin-top:14px">Esempio file</p>
       <pre class="csv-example">numero,nome,ruolo
-10,Mario Rossi,S
-5,Luca Bianchi,P
+10,Mario Rossi,P
+5,Luca Bianchi,B
 3,Andrea Verdi,C
 1,Giorgio Neri,L
 7,Francesco Gialli,O
@@ -266,9 +266,9 @@
       <div class="form-group">
         <label>Ruolo</label>
         <select name="role" id="editRole" class="input">
-          <option value="S">S — Palleggiatore</option>
+          <option value="P">P — Palleggiatore</option>
           <option value="O">O — Opposto</option>
-          <option value="P">P — Posto 4</option>
+          <option value="B">B — Banda</option>
           <option value="C">C — Centrale</option>
           <option value="L">L — Libero</option>
           <option value="U">U — Universale</option>
