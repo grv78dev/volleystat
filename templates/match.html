@@ -104,7 +104,7 @@
                 data-number="{{ p.number }}"
                 onclick="assignPlayer({{ p.number }}, '{{ p.name|e }}', '{{ p.role }}')">
           <span class="btn-num">#{{ p.number }}</span>
-          <span class="btn-name">{{ p.name.split()[0] if p.name else '' }}</span>
+          <span class="btn-name">{{ p.name.split()[-1] if p.name else '' }}</span>
           <span class="btn-role">{{ p.role }}</span>
         </button>
         {% endfor %}
@@ -205,7 +205,7 @@ function assignPlayer(num, name, role) {
   }
   lineup[selectedCell] = { num, name, role };
   document.getElementById('posPlayer' + selectedCell).innerHTML =
-    `<b>#${num}</b><br><small>${name.split(' ')[0]}</small>`;
+    `<b>#${num}</b><br><small>${name.split(' ').pop()}</small>`;
   document.getElementById('cell' + selectedCell).classList.add('filled');
   selectedCell = null;
   document.querySelectorAll('.court-cell').forEach(c => c.classList.remove('selected'));

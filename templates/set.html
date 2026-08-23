@@ -423,7 +423,7 @@ function currentLineup() {
 
 function playerLabel(num) {
   const info = P_BY_NUM[num];
-  return info ? esc(info.name.split(' ')[0]) : '';
+  return info ? esc(info.name.split(' ').pop()) : '';
 }
 
 function liberoClass(num) {
@@ -667,7 +667,7 @@ function updateUI(state) {
     cell.dataset.line = line;
     cell.innerHTML = pnum
       ? `<span class="cp-num ${liberoClass(pnum)}">#${pnum}</span>
-         <span class="cp-name">${info ? esc(info.name.split(' ')[0]) : '?'}</span>
+         <span class="cp-name">${info ? esc(info.name.split(' ').pop()) : '?'}</span>
          <span class="cp-role">${info ? esc(info.role) : ''}</span>`
       : '—';
     cell.onclick = pnum ? (() => touchPickCourt(pnum)) : null;
@@ -759,7 +759,7 @@ function renderMiniStats(pstats) {
   keys.sort((a,b)=>parseInt(a)-parseInt(b)).forEach(n => {
     const s = pstats[n];
     const info = P_BY_NUM[n];
-    const name = info ? esc(info.name.split(' ')[0]) : `#${n}`;
+    const name = info ? esc(info.name.split(' ').pop()) : `#${n}`;
     const rp = s.rec_positivity !== null && s.rec_positivity !== undefined ? `<span class="${s.rec_positivity>=60?'pct-good':s.rec_positivity>=30?'pct-mid':''}">${s.rec_positivity}%</span>` : '—';
     const re = s.rec_efficiency !== null && s.rec_efficiency !== undefined ? `<span class="${s.rec_efficiency>=30?'pct-good':s.rec_efficiency<0?'pct-bad':''}">${s.rec_efficiency}%</span>` : '—';
     const ap = s.att_positivity !== null && s.att_positivity !== undefined ? `<span class="${s.att_positivity>=50?'pct-good':s.att_positivity>=25?'pct-mid':''}">${s.att_positivity}%</span>` : '—';

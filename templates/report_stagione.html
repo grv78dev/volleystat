@@ -149,7 +149,7 @@
     </text>
     {% if info %}
     <text x="{{ x+bw/2 }}" y="{{ h+20 }}" text-anchor="middle" font-size="6.5" fill="#777">
-      {{ info.name.split()[0] if info.name else '' }}
+      {{ info.name.split()[-1] if info.name else '' }}
     </text>
     {% endif %}
     {% endfor %}

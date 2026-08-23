@@ -232,7 +232,7 @@
             <tr>
               <td>
                 <span class="jersey-num" style="font-size:11px">{{ pnum }}</span>
-                {% if info %}<span style="font-size:11px;margin-left:3px">{{ info.name.split()[0] }}</span>{% endif %}
+                {% if info %}<span style="font-size:11px;margin-left:3px">{{ info.name.split()[-1] }}</span>{% endif %}
               </td>
               <td class="{{ 'stat-good' if d.kill }}">{{ d.kill }}</td>
               <td>{{ d.cont }}</td>

@@ -302,7 +302,7 @@
         <td style="padding:2px 5px;color:#777;font-style:italic">Ric.</td>
         <td style="padding:2px 5px;font-weight:700">
           <span style="background:#1a5c2e;color:#fff;border-radius:2px;padding:0 4px;font-size:7.5px">{{ pnum }}</span>
-          {{ info.name.split()[0] if info else '' }}
+          {{ info.name.split()[-1] if info else '' }}
         </td>
         <td style="padding:2px 5px;text-align:center;font-weight:700">{{ d.rpos }}</td>
         <td style="padding:2px 5px;text-align:center;color:{{ '#1a5c2e' if d.kills else '#333' }}">{{ d.kills }}</td>
@@ -324,7 +324,7 @@
         <td style="padding:2px 5px;color:#777;font-style:italic">Att.</td>
         <td style="padding:2px 5px;font-weight:700">
           <span style="background:#1a5c2e;color:#fff;border-radius:2px;padding:0 4px;font-size:7.5px">{{ pnum }}</span>
-          {{ info.name.split()[0] if info else '' }}
+          {{ info.name.split()[-1] if info else '' }}
         </td>
         <td style="padding:2px 5px;text-align:center;font-weight:700">{{ d.rpos_received }}</td>
         <td style="padding:2px 5px;text-align:center;color:{{ '#1a5c2e' if d.kills else '#333' }}">{{ d.kills }}</td>
