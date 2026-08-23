@@ -739,12 +739,12 @@ code, kbd, .mono {
 /* In modalità touch lo schermo è diviso ~30% info / ~70% input:
    campo, log e statistiche live si nascondono per lasciare spazio
    al tastierino, e il punteggio si compatta. */
-body.touch-mode-active .main-content { padding-bottom: 72vh; }
+body.touch-mode-active .main-content { padding-bottom: 52vh; }
 body.touch-mode-active .set-layout,
 body.touch-mode-active #miniStatsSection,
 body.touch-mode-active .cmd-ref { display: none; }
 body.touch-mode-active .live-scoreboard {
-  max-height: 30vh;
+  max-height: 50vh;
   padding: 8px 16px;
   box-sizing: border-box;
 }
@@ -761,7 +761,7 @@ body.touch-mode-active .live-us, body.touch-mode-active .live-them { padding: 4p
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   box-shadow: 0 -6px 24px rgba(0,0,0,.3);
   z-index: 250;
-  max-height: 70vh;
+  max-height: 50vh;
   overflow-y: auto;
   touch-action: manipulation;
 }
