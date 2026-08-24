@@ -21,7 +21,68 @@ pip3 install flask
 python3 app.py
 ```
 
-Il browser si apre automaticamente su `http://127.0.0.1:5000`
+Il browser si apre automaticamente su `http://127.0.0.1:8000`
+
+---
+
+## Installazione (Windows)
+
+VolleyStat gira anche su Windows: il codice Python è identico, cambiano solo
+gli script di avvio (`.bat` invece di `.sh`).
+
+### Guida passo passo
+
+1. **Installa Python** (se non è già presente)
+   - Vai su https://www.python.org/downloads/windows/ e scarica l'ultima versione di Python 3.
+   - Avvia l'installer. **Nella prima schermata spunta la casella
+     "Add python.exe to PATH"** in basso, poi clicca "Install Now".
+   - Verifica l'installazione aprendo il **Prompt dei comandi** (cerca "cmd"
+     nel menu Start) e digitando:
+     ```
+     python --version
+     ```
+     Deve rispondere con qualcosa tipo `Python 3.12.x`. Se dice "comando non
+     riconosciuto", riavvia il PC (serve a ricaricare il PATH) e riprova.
+
+2. **Scarica VolleyStat**
+   - Se hai Git: `git clone <url-del-repo>` da Prompt dei comandi.
+   - Altrimenti scarica lo ZIP da GitHub ("Code" → "Download ZIP") ed estrailo
+     in una cartella, ad esempio `C:\VolleyStat`.
+
+3. **Installa le dipendenze**
+   - Apri la cartella `VolleyStat` in Esplora File.
+   - Fai **doppio click su `install.bat`**.
+   - Lo script controlla che Python sia installato, crea un ambiente virtuale
+     nella sotto-cartella `.venv` e installa Flask al suo interno. Se qualcosa
+     manca (Python non trovato, modulo `venv` non disponibile, installazione
+     di Flask fallita) lo script si ferma e mostra un messaggio d'errore
+     chiaro con l'indicazione di cosa fare.
+   - A installazione riuscita vedrai "Installazione completata!".
+
+4. **Avvia l'applicazione**
+   - Fai **doppio click su `run.bat`**.
+   - Si apre una finestra nera (il server) e il browser predefinito su
+     `http://127.0.0.1:8000`.
+   - Per usarlo da tablet/altri PC sulla stessa rete Wi-Fi, usa l'indirizzo IP
+     mostrato nella finestra del server (es. `http://192.168.1.50:8000`).
+   - Per chiudere il programma: torna sulla finestra nera e premi `Ctrl+C`,
+     oppure chiudila direttamente.
+
+Oppure manualmente da Prompt dei comandi, nella cartella del progetto:
+```bat
+python -m venv .venv
+.venv\Scripts\pip install flask
+.venv\Scripts\python app.py
+```
+
+### Note
+
+- Se Windows Defender / il firewall chiede il permesso per Python alla prima
+  esecuzione, consenti l'accesso alle **reti private** (serve per farlo
+  raggiungere da tablet sulla stessa rete Wi-Fi/LAN).
+- `install.bat` e `run.bat` sono equivalenti a `install.sh` e `run.sh`: fanno
+  esattamente le stesse operazioni (creazione venv, installazione Flask,
+  avvio del server), solo con la sintassi Windows.
 
 ---
 
@@ -92,7 +153,10 @@ Backup: copia l'intera cartella `volleystat/` per preservare tutti i dati.
 
 ## Requisiti
 
-- Python 3.8+
-- Flask (unico pacchetto Python necessario)
-- Browser web (Firefox, Chromium — già presenti su Ubuntu)
-- Connessione internet: **non necessaria**
+- Python 3.8+ (Windows, macOS o Linux)
+- Flask (unico pacchetto Python necessario, installato automaticamente da
+  `install.sh` / `install.bat`)
+- Browser web (Firefox, Chrome, Edge — uno di questi è già presente su
+  qualsiasi PC moderno)
+- Connessione internet: **non necessaria** per l'uso quotidiano (solo per il
+  primo download di Python/Flask)
