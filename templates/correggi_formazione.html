@@ -173,6 +173,14 @@ function submitLineup() {
       return;
     }
   }
+  const warnings = checkFormationPairing(lineup);
+  if (warnings.length) {
+    const msg = 'Formazione non standard: palleggiatore/opposto e le due '
+      + 'centrali (o bande) dovrebbero essere sempre a 3 posizioni di '
+      + 'distanza (P1-P4, P2-P5, P3-P6).\n\nCoppie sospette:\n'
+      + warnings.join('\n') + '\n\nSalvare comunque?';
+    if (!confirm(msg)) return;
+  }
   const order = keys.map(k => lineup[k].num).join(',');
   document.getElementById('lineupInput').value = order;
   document.getElementById('newSetForm').submit();
