@@ -26,6 +26,7 @@ from stats import (
     compute_game_continuity,
     compute_setter_stats, compute_attack_zone_stats, compute_rotation_stats,
     compute_minutes_played, compute_score_timeline,
+    compute_setter_distribution_stats, SETTER_TAG_LABELS,
     zone_distance, displacement_label, displacement_class, setter_slot_in_lineup,
     ZONE_LAYOUT, ZONE_NAMES, ZONE_COORDS, SLOT_TO_ZONE, ROLE_FRONT_ZONE,
     ROT_LABELS, ROT_SHORT, ROT_ORDER,
@@ -172,6 +173,44 @@ def compute_match_continuity(cat_id, match_id, sets=None):
         d['disp_pct'] = pct(d['err'],             r)
 
     return {'team':agg_t,'by_receiver':agg_r,'by_attacker':agg_a}
+
+
+def compute_match_setter_distribution(cat_id, match_id, sets=None):
+    """Aggrega la distribuzione alzate ("nuovi codici", P1/P2/PC) su tutti
+    i set della partita. Set che non usano i nuovi codici non contribuiscono
+    (nessun tag P1/P2/PC negli eventi), quindi la funzione è sicura da
+    chiamare sempre, anche per partite interamente in modalità standard."""
+    by_type = {c: {'tot':0,'kills':0,'cont':0,'err':0} for c in SETTER_TAG_LABELS}
+    by_player = {}
+
+    if sets is None:
+        sets = get_match_sets(cat_id, match_id)
+    for sn, sd, state in sets:
+        sdist = compute_setter_distribution_stats(sd)
+        for code, d in sdist['by_type'].items():
+            for k in ('tot','kills','cont','err'):
+                by_type[code][k] += d.get(k, 0)
+        for p, codes in sdist['by_player'].items():
+            bp = by_player.setdefault(p, {c: {'tot':0,'kills':0,'cont':0,'err':0} for c in SETTER_TAG_LABELS})
+            for code, d in codes.items():
+                for k in ('tot','kills','cont','err'):
+                    bp[code][k] += d.get(k, 0)
+
+    def add_pct(d):
+        t = d['tot']
+        d['conv_pct'] = pct(d['kills'], t)
+        d['eff_pct']  = pct(d['kills']+d['cont']-d['err'], t)
+        return d
+    for code in by_type: add_pct(by_type[code])
+    for p, codes in by_player.items():
+        for code in codes: add_pct(codes[code])
+
+    return {
+        'labels':     SETTER_TAG_LABELS,
+        'by_type':    by_type,
+        'by_player':  by_player,
+        'total_tags': sum(d['tot'] for d in by_type.values()),
+    }
 
 
 def compute_match_setter_stats(cat_id, match_id, sets=None):
@@ -990,6 +1029,23 @@ def set_view(cat_id, match_id, set_num):
                            set_num=set_num,
                            formation_editable=_formation_editable(sd))
 
+@app.route('/c/<cat_id>/partita/<match_id>/set/<int:set_num>/codici', methods=['POST'])
+def set_code_mode(cat_id, match_id, set_num):
+    """Sceglie il set di comandi (standard / nuovi codici allenatore) per
+    questo set. Modificabile solo finché il set non ha eventi reali, come
+    la formazione iniziale (vedi _formation_editable)."""
+    sd = get_set(cat_id, match_id, set_num)
+    if not sd:
+        return jsonify(error='Set non trovato'), 404
+    if not _formation_editable(sd):
+        return jsonify(error='Il set ha già eventi registrati: modalità comandi non più modificabile'), 400
+    mode = (request.json or {}).get('mode')
+    if mode not in ('standard', 'nuovo'):
+        return jsonify(error='Modalità non valida'), 400
+    sd['code_mode'] = mode
+    save_set(cat_id, match_id, set_num, sd)
+    return jsonify(success=True, code_mode=mode)
+
 @app.route('/c/<cat_id>/partita/<match_id>/set/<int:set_num>/correggi-formazione', methods=['GET'])
 def correggi_formazione_view(cat_id, match_id, set_num):
     cat = get_category(cat_id)
@@ -1104,7 +1160,8 @@ def _add_command(cat_id, match_id, set_num):
     if not sd:
         return jsonify(error='Set non trovato'), 404
 
-    ev = parse_command(request.json.get('command','').strip())
+    ev = parse_command(request.json.get('command','').strip(),
+                       mode=sd.get('code_mode', 'standard'))
     if ev['type'] == 'error':
         return jsonify(error=ev['message']), 400
 
@@ -1216,6 +1273,7 @@ def _build_stats(cat_id, match_id, sets=None):
             'state':       state,
             'player_stats':enrich_stats(pstats),
             'minutes':     set_mins,
+            'code_mode':   sd.get('code_mode', 'standard'),
         })
         for pnum, pdata in pstats.items():
             if pnum not in total_raw:
@@ -1238,12 +1296,16 @@ def stats_view(cat_id, match_id):
     attack_zone_stats   = compute_match_attack_zone_stats(cat_id, match_id, sets_data)
     rotation_stats      = compute_match_rotation_stats(cat_id, match_id, sets_data)
     continuity_stats    = compute_match_continuity(cat_id, match_id, sets_data)
+    setter_dist_stats   = compute_match_setter_distribution(cat_id, match_id, sets_data)
+    has_nuovi_codici    = any(sd.get('code_mode') == 'nuovo' for _sn, sd, _st in sets_data)
     return render_template('stats.html', cat=cat, match=m,
                            sets=all_sets, total_stats=total_stats, p_by_num=p_by_num,
                            match_minutes=match_minutes, setter_stats=setter_stats,
                            attack_zone_stats=attack_zone_stats,
                            rotation_stats=rotation_stats,
                            continuity_stats=continuity_stats,
+                           setter_dist_stats=setter_dist_stats,
+                           has_nuovi_codici=has_nuovi_codici,
                            zone_layout=ZONE_LAYOUT, zone_names=ZONE_NAMES)
 
 # ─────────────────────────────────────────────────────────────

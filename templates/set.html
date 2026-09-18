@@ -28,6 +28,20 @@
   </div>
 </div>
 
+<!-- Selezione set di codici (solo a inizio set, finché non ci sono eventi reali) -->
+{% if not sd.code_mode and formation_editable %}
+<div class="modal" id="codeModal" style="display:flex">
+  <div class="modal-box">
+    <h3>Quali codici usare in questo set?</h3>
+    <p style="margin-bottom:16px;color:var(--text-muted);font-size:13px;">Scegli i codici prima di iniziare a segnare. Non si può più cambiare una volta registrato il primo evento del set.</p>
+    <div class="btn-row" style="flex-direction:column;gap:10px;">
+      <button class="btn btn-accent btn-lg" onclick="setCodeMode('standard')">📋 Codici Attuali</button>
+      <button class="btn btn-lg" onclick="setCodeMode('nuovo')">🆕 Nuovi Codici (allenatore)</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- SCOREBOARD LIVE -->
 <section class="live-scoreboard" id="liveScoreboard">
   <div class="live-us">
@@ -39,6 +53,9 @@
     <div class="live-set-label">SET {{ set_num }}
       {% if state.ruleset == 'pgs' %}
         <span class="set-ruleset-badge">PGS</span>
+      {% endif %}
+      {% if sd.code_mode == 'nuovo' %}
+        <span class="set-ruleset-badge" title="Nuovi codici allenatore attivi">NUOVI CODICI</span>
       {% endif %}
     </div>
     <div class="live-limit-hint">a {{ state.limit }} pt</div>
@@ -160,6 +177,16 @@
         <button class="shortcut-btn" onclick="typeShortcut('R+')">R+[n] Ric.att</button>
         <button class="shortcut-btn" onclick="typeShortcut('R-')">R-[n] Ric.neg</button>
         <button class="shortcut-btn" onclick="typeShortcut('RE')">RE[n] Ace sub.</button>
+        {% if sd.code_mode == 'nuovo' %}
+        <button class="shortcut-btn" onclick="typeShortcut('RO')">RO[n] Ric.out</button>
+        <button class="shortcut-btn" onclick="typeShortcut('AR')">AR[n] Att.rete</button>
+        <button class="shortcut-btn" onclick="typeShortcut('FT')">FT[n] Fallo tratt.</button>
+        <button class="shortcut-btn" onclick="typeShortcut('FD')">FD[n] Fallo doppia</button>
+        <button class="shortcut-btn" onclick="typeShortcut('FS')">FS[n] Fallo salto</button>
+        <button class="shortcut-btn btn-setter" onclick="typeShortcut('P1')">P1[n] Alz.1ªlinea</button>
+        <button class="shortcut-btn btn-setter" onclick="typeShortcut('P2')">P2[n] Alz.2ªlinea</button>
+        <button class="shortcut-btn btn-setter" onclick="typeShortcut('PC')">PC[n] Alz.centrale</button>
+        {% endif %}
         <button class="shortcut-btn btn-setter" onclick="sendCmd('W1')">W1</button>
         <button class="shortcut-btn btn-setter" onclick="sendCmd('W2')">W2</button>
         <button class="shortcut-btn btn-setter" onclick="sendCmd('W3')">W3</button>
@@ -227,6 +254,9 @@
             <button class="touch-btn touch-btn-err" onclick="touchAction('AE')">AE<small>Errore</small></button>
             <button class="touch-btn touch-btn-err" onclick="touchAction('AB')">AB<small>Murato pt</small></button>
             <button class="touch-btn" onclick="touchAction('ABN')">ABN<small>Murato camp</small></button>
+            {% if sd.code_mode == 'nuovo' %}
+            <button class="touch-btn touch-btn-err" onclick="touchAction('AR')">AR<small>A rete</small></button>
+            {% endif %}
           </div>
         </div>
         <div class="touch-group" data-group="muro">
@@ -243,6 +273,9 @@
             <button class="touch-btn touch-btn-pos" onclick="touchAction('R+')">R+<small>Positiva</small></button>
             <button class="touch-btn touch-btn-err" onclick="touchAction('R-')">R-<small>Negativa</small></button>
             <button class="touch-btn touch-btn-err" onclick="touchAction('RE')">RE<small>Ace sub.</small></button>
+            {% if sd.code_mode == 'nuovo' %}
+            <button class="touch-btn touch-btn-err" onclick="touchAction('RO')">RO<small>In out</small></button>
+            {% endif %}
           </div>
         </div>
         <div class="touch-group" data-group="difesa">
@@ -252,6 +285,24 @@
             <button class="touch-btn touch-btn-err" onclick="touchAction('DE')">DE<small>Errore</small></button>
           </div>
         </div>
+        {% if sd.code_mode == 'nuovo' %}
+        <div class="touch-group" data-group="alzata">
+          <div class="touch-group-title">Alzata Pall.</div>
+          <div class="touch-group-buttons">
+            <button class="touch-btn touch-btn-setter" onclick="touchAction('P1')">P1<small>1ª linea</small></button>
+            <button class="touch-btn touch-btn-setter" onclick="touchAction('P2')">P2<small>2ª linea</small></button>
+            <button class="touch-btn touch-btn-setter" onclick="touchAction('PC')">PC<small>Centrale</small></button>
+          </div>
+        </div>
+        <div class="touch-group" data-group="falli">
+          <div class="touch-group-title">Falli</div>
+          <div class="touch-group-buttons">
+            <button class="touch-btn touch-btn-err" onclick="touchAction('FT')">FT<small>Trattenuta</small></button>
+            <button class="touch-btn touch-btn-err" onclick="touchAction('FD')">FD<small>Doppia</small></button>
+            <button class="touch-btn touch-btn-err" onclick="touchAction('FS')">FS<small>Salto</small></button>
+          </div>
+        </div>
+        {% endif %}
         <div class="touch-group" data-group="sostituzioni">
           <div class="touch-group-title">Sostituzioni</div>
           <div class="touch-group-buttons">
@@ -316,10 +367,30 @@
         <div class="cmd-row"><code>BN[n]</code><span>Muro — palla in gioco</span></div>
       </div>
       <div class="cmd-group"><div class="cmd-group-title">RICEZIONE</div>
+        {% if sd.code_mode == 'nuovo' %}
+        <div class="cmd-row"><code>R+[n]</code><span>Nei 3 metri</span></div>
+        <div class="cmd-row"><code>R-[n]</code><span>Fuori dai 3 metri</span></div>
+        <div class="cmd-row"><code>RE[n]</code><span>Ace subito</span></div>
+        <div class="cmd-row"><code>RO[n]</code><span>Ricezione in out</span></div>
+        {% else %}
         <div class="cmd-row"><code>R+[n]</code><span>Permette attacco</span></div>
         <div class="cmd-row"><code>R-[n]</code><span>Non permette att.</span></div>
         <div class="cmd-row"><code>RE[n]</code><span>Ace subito</span></div>
+        {% endif %}
       </div>
+      {% if sd.code_mode == 'nuovo' %}
+      <div class="cmd-group"><div class="cmd-group-title">ATTACCO A RETE / FALLI</div>
+        <div class="cmd-row"><code>AR[n]</code><span>Attacco a rete</span></div>
+        <div class="cmd-row"><code>FT[n]</code><span>Fallo di trattenuta</span></div>
+        <div class="cmd-row"><code>FD[n]</code><span>Fallo di doppia</span></div>
+        <div class="cmd-row"><code>FS[n]</code><span>Fallo salto 2ª→1ª linea</span></div>
+      </div>
+      <div class="cmd-group"><div class="cmd-group-title">ALZATA PALLEGGIATORE</div>
+        <div class="cmd-row"><code>P1[n]</code><span>Alzata 1ª linea — #n attaccante</span></div>
+        <div class="cmd-row"><code>P2[n]</code><span>Alzata 2ª linea — #n attaccante</span></div>
+        <div class="cmd-row"><code>PC[n]</code><span>Alzata al centrale (Z3) — #n attaccante</span></div>
+      </div>
+      {% endif %}
       <div class="cmd-group"><div class="cmd-group-title">PALLEGGIATORE</div>
         <div class="cmd-row"><code>W[1-6]</code><span>Zona alzata</span></div>
         <div class="cmd-row" style="font-size:10px;color:var(--text-muted);padding-left:4px">
@@ -358,6 +429,21 @@ const SET_NUM   = {{ set_num }};
 const P_BY_NUM  = {{ p_by_num|tojson }};
 const LIBERO_NUM = {{ sd.libero|tojson }};
 const SET_OVER_AT_LOAD = {{ 'true' if state.set_over else 'false' }};
+const CODE_MODE = {{ (sd.code_mode or 'standard')|tojson }};
+
+function setCodeMode(mode) {
+  fetch(`/c/${CAT_ID}/partita/${MATCH_ID}/set/${SET_NUM}/codici`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode})
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) { alert(data.error); return; }
+    location.reload();
+  })
+  .catch(() => alert('Errore di rete'));
+}
 let cmdHistory  = [];
 let histIdx     = -1;
 let LAST_STATE  = {{ state|tojson }};
@@ -411,9 +497,9 @@ function typeShortcut(prefix) {
 // esce") e chiedono solo chi entra. Un tastierino manuale resta
 // disponibile come scappatoia per casi non previsti.
 const GROUP_ORDER = {
-  server:  ['servizio','attacco','muro','ricezione','difesa','sostituzioni'],
-  front:   ['attacco','muro','servizio','ricezione','difesa','sostituzioni'],
-  back:    ['ricezione','difesa','servizio','attacco','muro','sostituzioni']
+  server:  ['servizio','attacco','muro','ricezione','difesa','alzata','falli','sostituzioni'],
+  front:   ['attacco','muro','servizio','ricezione','difesa','alzata','falli','sostituzioni'],
+  back:    ['ricezione','difesa','servizio','attacco','muro','alzata','falli','sostituzioni']
 };
 
 let touchSelectedPlayer = null; // numero del giocatore toccato in campo
@@ -743,19 +829,20 @@ function renderMiniStats(pstats) {
     return `<td class="${cls}"><b>${v}%</b></td>`;
   }
 
+  const nuovi = CODE_MODE === 'nuovo';
   let html = `<table class="mini-stats-table">
     <thead>
       <tr>
         <th>N°</th><th>Atleta</th>
-        <th colspan="4" class="group-header">RICEZIONE</th>
-        <th colspan="5" class="group-header">ATTACCO</th>
-        <th>Ace</th><th>+Pt</th><th>–Pt</th>
+        <th colspan="${nuovi ? 5 : 4}" class="group-header">RICEZIONE</th>
+        <th colspan="${nuovi ? 6 : 5}" class="group-header">ATTACCO</th>
+        <th>Ace</th>${nuovi ? '<th colspan="3" class="group-header">FALLI</th>' : ''}<th>+Pt</th><th>–Pt</th>
       </tr>
       <tr class="subrow">
         <th></th><th></th>
-        <th>R+</th><th>R–</th><th>Ace.s</th><th>Pos%&nbsp;Eff%</th>
-        <th>Kill</th><th>Cont</th><th>Err</th><th>Mur</th><th>Pos%&nbsp;Eff%</th>
-        <th></th><th></th><th></th>
+        <th>R+</th><th>R–</th><th>Ace.s</th>${nuovi ? '<th>Out</th>' : ''}<th>Pos%&nbsp;Eff%</th>
+        <th>Kill</th><th>Cont</th><th>Err</th><th>Mur</th>${nuovi ? '<th>Rete</th>' : ''}<th>Pos%&nbsp;Eff%</th>
+        <th></th>${nuovi ? '<th>Tratt.</th><th>Doppia</th><th>Salto</th>' : ''}<th></th><th></th>
       </tr>
     </thead><tbody>`;
 
@@ -773,13 +860,18 @@ function renderMiniStats(pstats) {
       <td class="${s.rec_pos>0?'stat-good':''}">${s.rec_pos||0}</td>
       <td>${s.rec_neg||0}</td>
       <td class="${s.rec_err>0?'stat-bad':''}">${s.rec_err||0}</td>
+      ${nuovi ? `<td class="${s.rec_out>0?'stat-bad':''}">${s.rec_out||0}</td>` : ''}
       <td class="pct-combined">${rp} / ${re}</td>
       <td class="${s.attack_kill>0?'stat-good':''}">${s.attack_kill||0}</td>
       <td>${s.attack_cont||0}</td>
       <td class="${s.attack_err>0?'stat-bad':''}">${s.attack_err||0}</td>
       <td class="${s.attack_blk>0?'stat-bad':''}">${s.attack_blk||0}</td>
+      ${nuovi ? `<td class="${s.attack_net>0?'stat-bad':''}">${s.attack_net||0}</td>` : ''}
       <td class="pct-combined">${ap} / ${ae}</td>
       <td class="${s.serve_ace>0?'stat-good':''}">${s.serve_ace||0}</td>
+      ${nuovi ? `<td class="${s.fault_ft>0?'stat-bad':''}">${s.fault_ft||0}</td>
+      <td class="${s.fault_fd>0?'stat-bad':''}">${s.fault_fd||0}</td>
+      <td class="${s.fault_fs>0?'stat-bad':''}">${s.fault_fs||0}</td>` : ''}
       <td class="stat-pts-good">${s.pts_scored||0}</td>
       <td class="stat-pts-bad">${s.pts_lost||0}</td>
     </tr>`;

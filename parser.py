@@ -27,8 +27,34 @@ COMMANDS = {
     'DE':  (0,1,'defense',  'Errore difesa #{p}'),
 }
 
+# Codici aggiuntivi della modalità "Nuovi codici" (set custom richiesto da un
+# allenatore — vedi CLAUDE.md). Attivi solo quando parse_command riceve
+# mode='nuovo'; si sommano a COMMANDS (S/SE/B/BE/BN/D/DE/P/PE/W/T/TO/SUB/LIB
+# restano invariati in entrambe le modalità).
+COMMANDS_NUOVI_EXTRA = {
+    'AR': (0,1,'attack',    'Attacco a rete #{p}'),
+    'RO': (0,1,'reception', 'Ricezione andata in out #{p}'),
+    'FT': (0,1,'fault',     'Fallo di trattenuta #{p}'),
+    'FD': (0,1,'fault',     'Fallo di doppia #{p}'),
+    'FS': (0,1,'fault',     'Fallo di salto (2ª→1ª linea) #{p}'),
+}
 
-def parse_command(raw):
+# Tag di alzata del palleggiatore (solo modalità "nuovo"): non assegnano punti,
+# taggano il tipo di alzata sul giocatore che l'ha ricevuta — vedi
+# compute_setter_distribution_stats in stats.py per le statistiche derivate.
+SETTER_TAGS_NUOVI = {
+    'P1': 'Alzata 1ª linea',
+    'P2': 'Alzata 2ª linea',
+    'PC': 'Alzata al centrale (Z3)',
+}
+
+CODE_ORDER_STANDARD = ('ABN','AN','AB','AE','SE','BE','BN','RE','DE','S','A','B')
+CODE_ORDER_NUOVI    = ('ABN','AN','AB','AE','AR','SE','BE','BN','RE','RO','DE',
+                        'FT','FD','FS','S','A','B')
+COMMANDS_NUOVI_EXTRA_MERGED = dict(COMMANDS, **COMMANDS_NUOVI_EXTRA)
+
+
+def parse_command(raw, mode='standard'):
     cmd = raw.strip().upper()
     if cmd == 'UNDO':
         return {'type': 'undo'}
@@ -80,11 +106,16 @@ def parse_command(raw):
                 'n1': n1, 'n2': n2,
                 'desc':f'Cambio libero: #{n1} ↔ #{n2}'}
 
-    # Ricezione: R+15 (permette att.), R-15 (non permette)
+    # Ricezione: R+15 (permette att.), R-15 (non permette).
+    # In modalità "nuovo" i due codici indicano la distanza dai 3 metri
+    # anziché la qualità soggettiva, ma restano eventi 'stat' senza punto.
     r_m = re.match(r'^(R[+\-])(\d+)$', cmd)
     if r_m:
         mod, player = r_m.group(1), int(r_m.group(2))
-        labels = {'R+': 'Ricezione positiva (att.)', 'R-': 'Ricezione negativa'}
+        if mode == 'nuovo':
+            labels = {'R+': 'Ricezione nei 3 metri', 'R-': 'Ricezione fuori dai 3 metri'}
+        else:
+            labels = {'R+': 'Ricezione positiva (att.)', 'R-': 'Ricezione negativa'}
         return {'type':'stat','action':mod,'player':player,
                 'category':'reception','desc':f'{labels[mod]} #{player}'}
 
@@ -95,13 +126,25 @@ def parse_command(raw):
         return {'type':'stat','action':'D','player':player,
                 'category':'defense','desc':f'Difesa #{player}'}
 
+    # Alzata palleggiatore — P1/P2/PC[numero] (solo modalità "nuovo")
+    if mode == 'nuovo':
+        pset_m = re.match(r'^(P1|P2|PC)(\d+)$', cmd)
+        if pset_m:
+            code, player = pset_m.group(1), int(pset_m.group(2))
+            return {'type':'stat','action':code,'player':player,
+                    'category':'alzata',
+                    'desc':f'{SETTER_TAGS_NUOVI[code]} #{player}'}
+
+    codes_table = COMMANDS_NUOVI_EXTRA_MERGED if mode == 'nuovo' else COMMANDS
+    order       = CODE_ORDER_NUOVI if mode == 'nuovo' else CODE_ORDER_STANDARD
+
     # ORDINE CRITICO: ABN prima di AB, AN prima di A, BN prima di B, codici lunghi prima dei corti
-    for code in ('ABN','AN','AB','AE','SE','BE','BN','RE','DE','S','A','B'):
+    for code in order:
         if cmd.startswith(code):
             rest = cmd[len(code):]
             if rest.isdigit() and rest:
                 player = int(rest)
-                pu, pt, cat, desc_t = COMMANDS[code]
+                pu, pt, cat, desc_t = codes_table[code]
                 desc = desc_t.replace('{p}', str(player))
                 # AN, ABN e BN = stat pura (nessun punto diretto)
                 if code in ('AN', 'ABN', 'BN'):

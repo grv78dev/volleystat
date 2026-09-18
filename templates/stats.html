@@ -545,9 +545,10 @@
         <th title="Ricezioni che permettono attacco">R+</th>
         <th title="Ricezioni che non permettono attacco">R–</th>
         <th title="Ace subiti">Ace sub.</th>
+        {% if has_nuovi_codici %}<th title="Ricezione andata in out (nuovi codici)">In out</th>{% endif %}
         <th title="Totale ricezioni">Tot.</th>
         <th title="Positività = (R+ + R–) / Tot × 100" class="pct-header">Positività %</th>
-        <th title="Efficienza = (R+ + R– − Ace sub.) / Tot × 100" class="pct-header">Efficienza %</th>
+        <th title="Efficienza = (R+ + R– − Ace sub.{{ ' − In out' if has_nuovi_codici }}) / Tot × 100" class="pct-header">Efficienza %</th>
       </tr>
     </thead>
     <tbody>
@@ -559,6 +560,7 @@
         <td class="stat-good">{{ s.rec_pos }}</td>
         <td>{{ s.rec_neg }}</td>
         <td class="{{ 'stat-bad' if s.rec_err > 0 }}">{{ s.rec_err }}</td>
+        {% if has_nuovi_codici %}<td class="{{ 'stat-bad' if s.rec_out > 0 }}">{{ s.rec_out }}</td>{% endif %}
         <td class="muted-cell">{{ s.rec_total }}</td>
         {{ pct_cell(s.rec_positivity, 60) }}
         {{ pct_cell(s.rec_efficiency, 30) }}
@@ -571,7 +573,7 @@
   <!-- Formula legenda -->
   <div class="formula-legend">
     <span><b>Positività</b> = (R+ + R−) ÷ Tot × 100 &nbsp;·&nbsp; R+ e R− sono valori positivi</span>
-    <span><b>Efficienza</b> = (R+ + R− − Ace sub.) ÷ Tot × 100 &nbsp;·&nbsp; solo RE è negativo</span>
+    <span><b>Efficienza</b> = (R+ + R− − Ace sub.{{ ' − In out' if has_nuovi_codici }}) ÷ Tot × 100 &nbsp;·&nbsp; {{ 'RE e RO sono negativi' if has_nuovi_codici else 'solo RE è negativo' }}</span>
   </div>
 
   <!-- ATTACCO — HEATMAP ZONE -->
@@ -711,9 +713,10 @@
         <th title="Attacco in campo, senza punto">Cont.</th>
         <th title="Errore attacco">Err.</th>
         <th title="Attacco murato">Mur.</th>
+        {% if has_nuovi_codici %}<th title="Attacco a rete (nuovi codici)">Rete</th>{% endif %}
         <th title="Totale attacchi">Tot.</th>
         <th title="Positività = (Kill + Cont.) / Tot × 100" class="pct-header">Positività %</th>
-        <th title="Efficienza = (Kill + Cont. − Err. − Mur.) / Tot × 100" class="pct-header">Efficienza %</th>
+        <th title="Efficienza = (Kill + Cont. − Err. − Mur.{{ ' − Rete' if has_nuovi_codici }}) / Tot × 100" class="pct-header">Efficienza %</th>
       </tr>
     </thead>
     <tbody>
@@ -726,6 +729,7 @@
         <td>{{ s.attack_cont }}</td>
         <td class="{{ 'stat-bad' if s.attack_err > 0 }}">{{ s.attack_err }}</td>
         <td class="{{ 'stat-bad' if s.attack_blk > 0 }}">{{ s.attack_blk }}</td>
+        {% if has_nuovi_codici %}<td class="{{ 'stat-bad' if s.attack_net > 0 }}">{{ s.attack_net }}</td>{% endif %}
         <td class="muted-cell">{{ s.att_total }}</td>
         {{ pct_cell(s.att_positivity, 50) }}
         {{ pct_cell(s.att_efficiency, 25) }}
@@ -736,8 +740,110 @@
   </div>
   <div class="formula-legend">
     <span><b>Positività</b> = (Kill + Cont.) ÷ Tot × 100 &nbsp;·&nbsp; A e AN sono valori positivi</span>
-    <span><b>Efficienza</b> = (Kill + Cont. − Err. − Mur.) ÷ Tot × 100 &nbsp;·&nbsp; AE e AB sono negativi</span>
+    <span><b>Efficienza</b> = (Kill + Cont. − Err. − Mur.{{ ' − Rete' if has_nuovi_codici }}) ÷ Tot × 100 &nbsp;·&nbsp; AE, AB{{ ' e AR' if has_nuovi_codici }} sono negativi</span>
   </div>
+
+  {% if has_nuovi_codici %}
+  <!-- FALLI (nuovi codici) -->
+  <h3 class="stat-section-title">Falli</h3>
+  <div class="stats-table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">N°</th><th class="left">Atleta</th>
+        <th title="Fallo di trattenuta">Trattenuta</th>
+        <th title="Fallo di doppia">Doppia</th>
+        <th title="Fallo di salto (2ª→1ª linea)">Salto 2ª→1ª</th>
+        <th title="Totale falli">Tot.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pnum, s in total_stats.items()|sort(attribute='0') %}
+      {% if s.fault_total > 0 %}
+      {% set info = p_by_num.get(pnum|int) %}
+      <tr>
+        <td><span class="jersey-num">{{ pnum }}</span></td>
+        <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+        <td class="{{ 'stat-bad' if s.fault_ft > 0 }}">{{ s.fault_ft }}</td>
+        <td class="{{ 'stat-bad' if s.fault_fd > 0 }}">{{ s.fault_fd }}</td>
+        <td class="{{ 'stat-bad' if s.fault_fs > 0 }}">{{ s.fault_fs }}</td>
+        <td class="muted-cell"><b>{{ s.fault_total }}</b></td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <!-- DISTRIBUZIONE ALZATE (nuovi codici: P1/P2/PC) -->
+  {% if setter_dist_stats and setter_dist_stats.total_tags > 0 %}
+  <h3 class="stat-section-title">Distribuzione Alzate — Palleggiatore</h3>
+  <div class="stats-table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">Tipo alzata</th>
+        <th title="Kill sull'attacco successivo">Kill</th>
+        <th title="Attacco in campo senza punto">Cont.</th>
+        <th title="Errore sull'attacco successivo">Err.</th>
+        <th title="Totale alzate di questo tipo">Tot.</th>
+        <th title="Conversione = Kill / Tot × 100" class="pct-header">Conv. %</th>
+        <th title="Efficienza = (Kill + Cont. − Err.) / Tot × 100" class="pct-header">Eff. %</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for code, label in setter_dist_stats.labels.items() %}
+      {% set d = setter_dist_stats.by_type[code] %}
+      <tr>
+        <td class="left">{{ code }} — {{ label }}</td>
+        <td class="{{ 'stat-good' if d.kills > 0 }}">{{ d.kills }}</td>
+        <td>{{ d.cont }}</td>
+        <td class="{{ 'stat-bad' if d.err > 0 }}">{{ d.err }}</td>
+        <td class="muted-cell">{{ d.tot }}</td>
+        {{ pct_cell(d.conv_pct, 40) }}
+        {{ pct_cell(d.eff_pct, 20) }}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Distribuzione alzate per attaccante -->
+  {% if setter_dist_stats.by_player %}
+  <div class="setter-dist-wrap" style="margin-top:14px">
+    <div class="setter-heatmap-label">Per attaccante</div>
+    <div class="zone-distribution-grid">
+      {% for pnum, codes in setter_dist_stats.by_player.items()|sort(attribute='0') %}
+      {% set info = p_by_num.get(pnum|int) %}
+      {% set p_tot = codes.values()|map(attribute='tot')|sum %}
+      {% if p_tot > 0 %}
+      <div class="zone-card">
+        <div class="zone-card-header" style="background:{{ cat.color }}">#{{ pnum }} — {{ info.name if info else '' }}</div>
+        <table class="zone-card-table">
+          <thead><tr><th>Tipo</th><th>Tot</th><th>Kill</th><th>Err</th><th>Eff%</th></tr></thead>
+          <tbody>
+            {% for code, label in setter_dist_stats.labels.items() %}
+            {% set d = codes[code] %}
+            {% if d.tot > 0 %}
+            <tr>
+              <td>{{ code }}</td>
+              <td>{{ d.tot }}</td>
+              <td class="{{ 'stat-good' if d.kills > 0 }}">{{ d.kills }}</td>
+              <td class="{{ 'stat-bad' if d.err > 0 }}">{{ d.err }}</td>
+              <td>{% if d.eff_pct is not none %}{{ d.eff_pct }}%{% else %}—{% endif %}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+  {% endif %}
 
   <!-- SERVIZIO + MURO + PUNTI -->
   <h3 class="stat-section-title">Altri indicatori</h3>
@@ -788,12 +894,14 @@
   </div>
 
   {% if s.player_stats %}
+  {% set s_nuovi = s.code_mode == 'nuovo' %}
+  {% if s_nuovi %}<span class="badge" style="margin-bottom:8px;display:inline-block">🆕 Nuovi Codici</span>{% endif %}
   <!-- Ricezione set -->
   <p class="stat-subsection">Ricezione</p>
   <table class="data-table stats-set">
     <thead>
       <tr><th class="left">N°</th><th class="left">Atleta</th>
-          <th>R+</th><th>R–</th><th>Ace sub.</th><th>Tot.</th>
+          <th>R+</th><th>R–</th><th>Ace sub.</th>{% if s_nuovi %}<th>In out</th>{% endif %}<th>Tot.</th>
           <th class="pct-header">Pos%</th><th class="pct-header">Eff%</th></tr>
     </thead>
     <tbody>
@@ -805,6 +913,7 @@
         <td class="{{ 'stat-good' if ps.rec_pos }}">{{ ps.rec_pos }}</td>
         <td>{{ ps.rec_neg }}</td>
         <td class="{{ 'stat-bad' if ps.rec_err }}">{{ ps.rec_err }}</td>
+        {% if s_nuovi %}<td class="{{ 'stat-bad' if ps.rec_out }}">{{ ps.rec_out }}</td>{% endif %}
         <td class="muted-cell">{{ ps.rec_total }}</td>
         {{ pct_cell(ps.rec_positivity, 60) }}
         {{ pct_cell(ps.rec_efficiency, 30) }}
@@ -818,7 +927,7 @@
   <table class="data-table stats-set">
     <thead>
       <tr><th class="left">N°</th><th class="left">Atleta</th>
-          <th>Kill</th><th>Cont.</th><th>Err.</th><th>Mur.</th><th>Tot.</th>
+          <th>Kill</th><th>Cont.</th><th>Err.</th><th>Mur.</th>{% if s_nuovi %}<th>Rete</th>{% endif %}<th>Tot.</th>
           <th class="pct-header">Pos%</th><th class="pct-header">Eff%</th></tr>
     </thead>
     <tbody>
@@ -831,6 +940,7 @@
         <td>{{ ps.attack_cont }}</td>
         <td class="{{ 'stat-bad' if ps.attack_err }}">{{ ps.attack_err }}</td>
         <td class="{{ 'stat-bad' if ps.attack_blk }}">{{ ps.attack_blk }}</td>
+        {% if s_nuovi %}<td class="{{ 'stat-bad' if ps.attack_net }}">{{ ps.attack_net }}</td>{% endif %}
         <td class="muted-cell">{{ ps.att_total }}</td>
         {{ pct_cell(ps.att_positivity, 50) }}
         {{ pct_cell(ps.att_efficiency, 25) }}
@@ -838,6 +948,32 @@
       {% endfor %}
     </tbody>
   </table>
+
+  {% if s_nuovi %}
+  <!-- Falli set -->
+  <p class="stat-subsection">Falli</p>
+  <table class="data-table stats-set">
+    <thead>
+      <tr><th class="left">N°</th><th class="left">Atleta</th>
+          <th>Trattenuta</th><th>Doppia</th><th>Salto 2ª→1ª</th><th>Tot.</th></tr>
+    </thead>
+    <tbody>
+      {% for pnum, ps in s.player_stats.items()|sort(attribute='0') %}
+      {% if ps.fault_total > 0 %}
+      {% set info = p_by_num.get(pnum|int) %}
+      <tr>
+        <td><span class="jersey-num">{{ pnum }}</span></td>
+        <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+        <td class="{{ 'stat-bad' if ps.fault_ft }}">{{ ps.fault_ft }}</td>
+        <td class="{{ 'stat-bad' if ps.fault_fd }}">{{ ps.fault_fd }}</td>
+        <td class="{{ 'stat-bad' if ps.fault_fs }}">{{ ps.fault_fs }}</td>
+        <td class="muted-cell"><b>{{ ps.fault_total }}</b></td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
   {% endif %}
 </section>
 {% endfor %}

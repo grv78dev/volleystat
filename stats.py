@@ -66,14 +66,19 @@ def compute_player_stats(sd):
             stats[n] = dict(
                 # Servizio
                 serve_ace=0, serve_err=0,
-                # Attacco: kill, continua, errore, murato
-                attack_kill=0, attack_cont=0, attack_err=0, attack_blk=0,
+                # Attacco: kill, continua, errore, murato, a rete (nuovi codici)
+                attack_kill=0, attack_cont=0, attack_err=0, attack_blk=0, attack_net=0,
                 # Muro: punto, errore, tocco (palla resta in gioco)
                 block_pt=0, block_err=0, block_touch=0,
-                # Ricezione: positiva (permette att.), negativa, ace subito
-                rec_pos=0, rec_neg=0, rec_err=0,
+                # Ricezione: positiva (permette att.), negativa, ace subito, in out (nuovi codici)
+                rec_pos=0, rec_neg=0, rec_err=0, rec_out=0,
                 # Difesa
                 def_pos=0, def_err=0,
+                # Falli (nuovi codici): trattenuta, doppia, salto 2ª→1ª linea
+                fault_ft=0, fault_fd=0, fault_fs=0,
+                # Alzate ricevute per tipo (nuovi codici, solo informativo qui —
+                # vedi compute_setter_distribution_stats per le conversioni)
+                set_p1=0, set_p2=0, set_pc=0,
                 # Punti
                 pts_scored=0, pts_lost=0,
             )
@@ -85,6 +90,7 @@ def compute_player_stats(sd):
         'A':  lambda p: g(p).update(attack_kill=g(p)['attack_kill']+1, pts_scored=g(p)['pts_scored']+1),
         'AN': lambda p: g(p).update(attack_cont=g(p)['attack_cont']+1),
         'AE': lambda p: g(p).update(attack_err=g(p)['attack_err']+1,  pts_lost=g(p)['pts_lost']+1),
+        'AR': lambda p: g(p).update(attack_net=g(p)['attack_net']+1,  pts_lost=g(p)['pts_lost']+1),
         'AB': lambda p: g(p).update(attack_blk=g(p)['attack_blk']+1,  pts_lost=g(p)['pts_lost']+1),
         'ABN':lambda p: g(p).update(attack_blk=g(p)['attack_blk']+1),   # murato, palla in gioco — no punto perso
         'B':  lambda p: g(p).update(block_pt=g(p)['block_pt']+1,      pts_scored=g(p)['pts_scored']+1),
@@ -93,8 +99,15 @@ def compute_player_stats(sd):
         'R+': lambda p: g(p).update(rec_pos=g(p)['rec_pos']+1),
         'R-': lambda p: g(p).update(rec_neg=g(p)['rec_neg']+1),
         'RE': lambda p: g(p).update(rec_err=g(p)['rec_err']+1,        pts_lost=g(p)['pts_lost']+1),
+        'RO': lambda p: g(p).update(rec_out=g(p)['rec_out']+1,        pts_lost=g(p)['pts_lost']+1),
         'D':  lambda p: g(p).update(def_pos=g(p)['def_pos']+1),
         'DE': lambda p: g(p).update(def_err=g(p)['def_err']+1,        pts_lost=g(p)['pts_lost']+1),
+        'FT': lambda p: g(p).update(fault_ft=g(p)['fault_ft']+1,      pts_lost=g(p)['pts_lost']+1),
+        'FD': lambda p: g(p).update(fault_fd=g(p)['fault_fd']+1,      pts_lost=g(p)['pts_lost']+1),
+        'FS': lambda p: g(p).update(fault_fs=g(p)['fault_fs']+1,      pts_lost=g(p)['pts_lost']+1),
+        'P1': lambda p: g(p).update(set_p1=g(p)['set_p1']+1),
+        'P2': lambda p: g(p).update(set_p2=g(p)['set_p2']+1),
+        'PC': lambda p: g(p).update(set_pc=g(p)['set_pc']+1),
     }
     for ev in sd.get('events',[]):
         if ev.get('type') not in ('point','stat'):
@@ -122,18 +135,24 @@ def enrich_stats(raw_stats):
         e = dict(s)
         # ── Ricezione ──
         # Positività = (R+ + R−) / Tot   → R+ e R− sono entrambi valori positivi
-        # Efficienza = (R+ + R− − RE) / Tot → RE è l'unico valore negativo
-        rec_tot = s['rec_pos'] + s['rec_neg'] + s['rec_err']
+        # Efficienza = (R+ + R− − RE − RO) / Tot → RE e RO (ric. in out, nuovi
+        # codici) sono gli unici valori negativi
+        rec_err_tot = s['rec_err'] + s.get('rec_out', 0)
+        rec_tot = s['rec_pos'] + s['rec_neg'] + rec_err_tot
         e['rec_total']      = rec_tot
         e['rec_positivity'] = pct(s['rec_pos'] + s['rec_neg'], rec_tot)
-        e['rec_efficiency'] = pct(s['rec_pos'] + s['rec_neg'] - s['rec_err'], rec_tot)
+        e['rec_efficiency'] = pct(s['rec_pos'] + s['rec_neg'] - rec_err_tot, rec_tot)
         # ── Attacco ──
         # Positività = (Kill + Cont) / Tot  → A e AN sono valori positivi
-        # Efficienza = (Kill + Cont − Err − Mur) / Tot → AE e AB sono negativi
-        att_tot = s['attack_kill'] + s['attack_cont'] + s['attack_err'] + s['attack_blk']
+        # Efficienza = (Kill + Cont − Err − Mur − Rete) / Tot → AE, AB e AR
+        # (attacco a rete, nuovi codici) sono negativi
+        att_err_tot = s['attack_err'] + s['attack_blk'] + s.get('attack_net', 0)
+        att_tot = s['attack_kill'] + s['attack_cont'] + att_err_tot
         e['att_total']      = att_tot
         e['att_positivity'] = pct(s['attack_kill'] + s['attack_cont'], att_tot)
-        e['att_efficiency'] = pct(s['attack_kill'] + s['attack_cont'] - s['attack_err'] - s['attack_blk'], att_tot)
+        e['att_efficiency'] = pct(s['attack_kill'] + s['attack_cont'] - att_err_tot, att_tot)
+        # ── Falli (nuovi codici) ──
+        e['fault_total'] = s.get('fault_ft', 0) + s.get('fault_fd', 0) + s.get('fault_fs', 0)
         result[pnum] = e
     return result
 
@@ -181,7 +200,7 @@ def compute_game_continuity(sd):
                 gr(player)['rpos'] += 1
             continue
 
-        if t in ('point','stat') and action in ('A','AN','AE','AB','ABN'):
+        if t in ('point','stat') and action in ('A','AN','AE','AB','ABN','AR'):
             if pending is not None:
                 outcome = ('kills' if action == 'A'
                            else 'cont' if action == 'AN'
@@ -345,7 +364,7 @@ def compute_setter_stats(sd):
             continue
         action = ev.get('action', '')
         player = ev.get('player')
-        if action not in ('A', 'AN', 'AE', 'AB', 'ABN') or player is None:
+        if action not in ('A', 'AN', 'AE', 'AB', 'ABN', 'AR') or player is None:
             continue
 
         outcome = 'kill' if action == 'A' else ('cont' if action == 'AN' else 'err')
@@ -479,7 +498,7 @@ def compute_attack_zone_stats(sd, players_by_num=None):
         if t in ('point', 'stat'):
             action = ev.get('action', '')
             player = ev.get('player')
-            if action in ('A', 'AN', 'AE', 'AB', 'ABN') and player is not None:
+            if action in ('A', 'AN', 'AE', 'AB', 'ABN', 'AR') and player is not None:
                 outcome = 'kill' if action == 'A' else ('cont' if action == 'AN' else 'err')
 
                 # Trova la zona funzionale dell'attaccante
@@ -930,4 +949,75 @@ def compute_score_timeline(sd):
             'below_fills': [fill_poly(s) for s in below_segs if len(s) >= 2],
             'x_labels':   x_labels,
         },
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# DISTRIBUZIONE ALZATE — "NUOVI CODICI" (P1/P2/PC)
+# ─────────────────────────────────────────────────────────────
+
+SETTER_TAG_LABELS = {'P1': '1ª linea', 'P2': '2ª linea', 'PC': 'Centrale (Z3)'}
+
+
+def compute_setter_distribution_stats(sd):
+    """
+    Statistiche derivate dai tag di alzata della modalità "nuovi codici"
+    (P1/P2/PC): collega ogni tag al successivo attacco dello stesso
+    giocatore per calcolare kill/continua/errore e le percentuali di
+    conversione ed efficienza per tipo di alzata.
+
+    Un set che non usa i nuovi codici non genera mai questi eventi, quindi
+    la funzione ritorna semplicemente struttura vuota (total_tags=0) — può
+    essere chiamata su qualunque set senza controlli preventivi.
+
+    Ritorna:
+      by_type:   {codice: {tot, kills, cont, err, conv_pct, eff_pct}}
+      by_player: {numero: {codice: {tot, kills, cont, err, conv_pct, eff_pct}}}
+      total_tags: int
+    """
+    events = sd.get('events', [])
+    by_type   = {c: {'tot': 0, 'kills': 0, 'cont': 0, 'err': 0} for c in SETTER_TAG_LABELS}
+    by_player = {}
+    pending   = {}   # player_num -> codice tag in attesa dell'esito
+
+    def gp(player, code):
+        d = by_player.setdefault(
+            player, {c: {'tot': 0, 'kills': 0, 'cont': 0, 'err': 0} for c in SETTER_TAG_LABELS})
+        return d[code]
+
+    for ev in events:
+        t      = ev.get('type')
+        action = ev.get('action', '')
+        player = ev.get('player')
+
+        if t == 'stat' and action in SETTER_TAG_LABELS and player is not None:
+            pending[player] = action
+            by_type[action]['tot'] += 1
+            gp(player, action)['tot'] += 1
+            continue
+
+        if t in ('point', 'stat') and action in ('A', 'AN', 'AE', 'AR', 'AB', 'ABN') and player is not None:
+            code = pending.pop(player, None)
+            if code:
+                outcome = 'kills' if action == 'A' else ('cont' if action == 'AN' else 'err')
+                by_type[code][outcome] += 1
+                gp(player, code)[outcome] += 1
+
+    def add_pct(d):
+        t = d['tot']
+        d['conv_pct'] = pct(d['kills'], t)
+        d['eff_pct']  = pct(d['kills'] + d['cont'] - d['err'], t)
+        return d
+
+    for code in by_type:
+        add_pct(by_type[code])
+    for player, codes in by_player.items():
+        for code in codes:
+            add_pct(codes[code])
+
+    return {
+        'labels':     SETTER_TAG_LABELS,
+        'by_type':    by_type,
+        'by_player':  by_player,
+        'total_tags': sum(d['tot'] for d in by_type.values()),
     }
