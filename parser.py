@@ -49,8 +49,10 @@ SETTER_TAGS_NUOVI = {
 }
 
 CODE_ORDER_STANDARD = ('ABN','AN','AB','AE','SE','BE','BN','RE','DE','S','A','B')
-CODE_ORDER_NUOVI    = ('ABN','AN','AB','AE','AR','SE','BE','BN','RE','RO','DE',
-                        'FT','FD','FS','S','A','B')
+# Muro (B/BE/BN) e difesa (D/DE) non fanno parte della modalità "nuovo":
+# l'allenatore non li richiede, restano disponibili solo in modalità standard.
+CODE_ORDER_NUOVI    = ('ABN','AN','AB','AE','AR','SE','RE','RO',
+                        'FT','FD','FS','S','A')
 COMMANDS_NUOVI_EXTRA_MERGED = dict(COMMANDS, **COMMANDS_NUOVI_EXTRA)
 
 
@@ -119,12 +121,13 @@ def parse_command(raw, mode='standard'):
         return {'type':'stat','action':mod,'player':player,
                 'category':'reception','desc':f'{labels[mod]} #{player}'}
 
-    # Difesa: D15
-    d_m = re.match(r'^(D)(\d+)$', cmd)
-    if d_m:
-        player = int(d_m.group(2))
-        return {'type':'stat','action':'D','player':player,
-                'category':'defense','desc':f'Difesa #{player}'}
+    # Difesa: D15 — non disponibile in modalità "nuovo" (non richiesta dall'allenatore)
+    if mode != 'nuovo':
+        d_m = re.match(r'^(D)(\d+)$', cmd)
+        if d_m:
+            player = int(d_m.group(2))
+            return {'type':'stat','action':'D','player':player,
+                    'category':'defense','desc':f'Difesa #{player}'}
 
     # Alzata palleggiatore — P1/P2/PC[numero] (solo modalità "nuovo")
     if mode == 'nuovo':

@@ -380,6 +380,62 @@
   </div>
   {% endif %}
 
+  <!-- RECUPERO DA RICEZIONE NEGATIVA (R-, nuovi codici) -->
+  {% if has_nuovi_codici and reception_neg_stats and reception_neg_stats.team.rpos > 0 %}
+  {% set cn = reception_neg_stats.team %}
+  <h3 class="stat-section-title">Recupero da Ricezione Negativa (R-)</h3>
+  <p class="stat-subsection" style="margin-top:-6px">Quante ricezioni fuori dai 3 metri portano comunque a un attacco vincente</p>
+
+  <div class="cont-kpi-row">
+    <div class="cont-kpi {% if cn.conv_pct and cn.conv_pct >= 20 %}cont-kpi-good{% elif cn.conv_pct and cn.conv_pct < 10 %}cont-kpi-bad{% else %}cont-kpi-mid{% endif %}">
+      <div class="cont-kpi-val">{{ cn.conv_pct|string+'%' if cn.conv_pct is not none else '—' }}</div>
+      <div class="cont-kpi-lbl">Conversione</div>
+      <div class="cont-kpi-sub">Kill dopo R- / R- tot</div>
+    </div>
+    <div class="cont-kpi {% if cn.cont_pct and cn.cont_pct >= 50 %}cont-kpi-good{% elif cn.cont_pct and cn.cont_pct < 30 %}cont-kpi-bad{% else %}cont-kpi-mid{% endif %}">
+      <div class="cont-kpi-val">{{ cn.cont_pct|string+'%' if cn.cont_pct is not none else '—' }}</div>
+      <div class="cont-kpi-lbl">Continuità</div>
+      <div class="cont-kpi-sub">(Kill+Cont) dopo R- / R- tot</div>
+    </div>
+    <div class="cont-kpi {% if cn.disp_pct and cn.disp_pct <= 30 %}cont-kpi-good{% elif cn.disp_pct and cn.disp_pct > 50 %}cont-kpi-bad{% else %}cont-kpi-mid{% endif %}">
+      <div class="cont-kpi-val">{{ cn.disp_pct|string+'%' if cn.disp_pct is not none else '—' }}</div>
+      <div class="cont-kpi-lbl">Dispersione</div>
+      <div class="cont-kpi-sub">Errori dopo R- / R- tot</div>
+    </div>
+    <div class="cont-kpi">
+      <div class="cont-kpi-val">{{ cn.rpos }}</div>
+      <div class="cont-kpi-lbl">R- totali</div>
+      <div class="cont-kpi-sub">{{ cn.kills }} Kill · {{ cn.cont }} Cont · {{ cn.err }} Err</div>
+    </div>
+  </div>
+
+  {% if reception_neg_stats.by_receiver %}
+  <table class="data-table" style="font-size:12px;margin-top:10px">
+    <thead><tr>
+      <th class="left">N°</th><th class="left">Atleta</th>
+      <th>R-</th><th>Kill</th><th>Cont</th><th>Err</th>
+      <th class="pct-header">Convers.%</th>
+    </tr></thead>
+    <tbody>
+    {% for pnum, d in reception_neg_stats.by_receiver.items()|sort(attribute='1.rpos',reverse=True) %}
+    {% if d.rpos >= 2 %}
+    {% set info = p_by_num.get(pnum|int) %}
+    <tr>
+      <td><span class="jersey-num">{{ pnum }}</span></td>
+      <td class="left">{{ info.name if info else '#'+pnum|string }}</td>
+      <td><b>{{ d.rpos }}</b></td>
+      <td class="{{ 'stat-good' if d.kills }}">{{ d.kills }}</td>
+      <td>{{ d.cont }}</td>
+      <td class="{{ 'stat-bad' if d.err }}">{{ d.err }}</td>
+      <td>{{ d.conv_pct|string+'%' if d.conv_pct is not none else '—' }}</td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% endif %}
+
   <!-- ANALISI PER ROTAZIONE -->
   {% if rotation_stats and rotation_stats.rotations %}
   {% set rs = rotation_stats %}
@@ -491,6 +547,38 @@
     </div>
     {% endif %}
     {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- FALLI PER ROTAZIONE (nuovi codici) -->
+  {% if has_nuovi_codici and fault_stats and fault_stats.total > 0 %}
+  <h3 class="stat-section-title">Falli per Rotazione</h3>
+  <div class="stats-table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">Rotazione</th>
+        <th title="Fallo di trattenuta">Trattenuta</th>
+        <th title="Fallo di doppia">Doppia</th>
+        <th title="Fallo di salto (2ª→1ª linea)">Salto 2ª→1ª</th>
+        <th title="Totale falli in questa rotazione">Tot.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for slot in rotation_stats.rot_order %}
+      {% set r = fault_stats.by_rotation[slot] %}
+      {% if r.tot > 0 %}
+      <tr>
+        <td class="left">{{ rotation_stats.rot_short[slot] }} — {{ rotation_stats.rot_labels[slot] }}</td>
+        <td class="{{ 'stat-bad' if r.FT > 0 }}">{{ r.FT }}</td>
+        <td class="{{ 'stat-bad' if r.FD > 0 }}">{{ r.FD }}</td>
+        <td class="{{ 'stat-bad' if r.FS > 0 }}">{{ r.FS }}</td>
+        <td class="muted-cell"><b>{{ r.tot }}</b></td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
   </div>
   {% endif %}
 

@@ -23,10 +23,11 @@ from flask import (Flask, abort, jsonify, make_response, redirect,
 from parser import parse_command, compute_state
 from stats import (
     compute_player_stats, enrich_stats, pct,
-    compute_game_continuity,
+    compute_game_continuity, compute_reception_negative_stats,
     compute_setter_stats, compute_attack_zone_stats, compute_rotation_stats,
     compute_minutes_played, compute_score_timeline,
     compute_setter_distribution_stats, SETTER_TAG_LABELS,
+    compute_fault_stats, FAULT_CODES, FAULT_LABELS,
     zone_distance, displacement_label, displacement_class, setter_slot_in_lineup,
     ZONE_LAYOUT, ZONE_NAMES, ZONE_COORDS, SLOT_TO_ZONE, ROLE_FRONT_ZONE,
     ROT_LABELS, ROT_SHORT, ROT_ORDER,
@@ -173,6 +174,64 @@ def compute_match_continuity(cat_id, match_id, sets=None):
         d['disp_pct'] = pct(d['err'],             r)
 
     return {'team':agg_t,'by_receiver':agg_r,'by_attacker':agg_a}
+
+
+def compute_match_reception_negative(cat_id, match_id, sets=None):
+    """Aggrega il recupero da ricezione negativa (R-, nuovi codici) su
+    tutti i set della partita — stessa forma di compute_match_continuity."""
+    agg_t = {'rpos':0,'kills':0,'cont':0,'err':0,'no_attack':0}
+    agg_r = {}
+
+    if sets is None:
+        sets = get_match_sets(cat_id, match_id)
+    for sn, sd, state in sets:
+        gc = compute_reception_negative_stats(sd)
+        for k in ('rpos','kills','cont','err','no_attack'):
+            agg_t[k] += gc['team'].get(k, 0)
+        for n, d in gc['by_receiver'].items():
+            if n not in agg_r:
+                agg_r[n] = {'rpos':0,'kills':0,'cont':0,'err':0}
+            for k in ('rpos','kills','cont','err'):
+                agg_r[n][k] += d.get(k, 0)
+
+    rp = agg_t['rpos']
+    agg_t['conv_pct'] = pct(agg_t['kills'],                    rp)
+    agg_t['cont_pct'] = pct(agg_t['kills'] + agg_t['cont'],    rp)
+    agg_t['disp_pct'] = pct(agg_t['err'],                      rp)
+    for n, d in agg_r.items():
+        r = d['rpos']
+        d['conv_pct'] = pct(d['kills'],           r)
+        d['cont_pct'] = pct(d['kills']+d['cont'], r)
+        d['disp_pct'] = pct(d['err'],             r)
+
+    return {'team':agg_t,'by_receiver':agg_r}
+
+
+def compute_match_fault_stats(cat_id, match_id, sets=None):
+    """Aggrega i falli (nuovi codici: FT/FD/FS) per rotazione e per
+    giocatore su tutti i set della partita."""
+    by_rotation = {i: {c: 0 for c in FAULT_CODES} for i in range(1, 7)}
+    by_player = {}
+    total = 0
+
+    if sets is None:
+        sets = get_match_sets(cat_id, match_id)
+    for sn, sd, state in sets:
+        fs = compute_fault_stats(sd)
+        for slot, d in fs['by_rotation'].items():
+            for c in FAULT_CODES:
+                by_rotation[slot][c] += d.get(c, 0)
+        for p, d in fs['by_player'].items():
+            bp = by_player.setdefault(p, {c: 0 for c in FAULT_CODES})
+            for c in FAULT_CODES:
+                bp[c] += d.get(c, 0)
+        total += fs['total']
+
+    for slot in by_rotation:
+        by_rotation[slot]['tot'] = sum(by_rotation[slot][c] for c in FAULT_CODES)
+
+    return {'by_rotation': by_rotation, 'by_player': by_player, 'total': total,
+            'labels': FAULT_LABELS}
 
 
 def compute_match_setter_distribution(cat_id, match_id, sets=None):
@@ -1296,7 +1355,9 @@ def stats_view(cat_id, match_id):
     attack_zone_stats   = compute_match_attack_zone_stats(cat_id, match_id, sets_data)
     rotation_stats      = compute_match_rotation_stats(cat_id, match_id, sets_data)
     continuity_stats    = compute_match_continuity(cat_id, match_id, sets_data)
+    reception_neg_stats = compute_match_reception_negative(cat_id, match_id, sets_data)
     setter_dist_stats   = compute_match_setter_distribution(cat_id, match_id, sets_data)
+    fault_stats         = compute_match_fault_stats(cat_id, match_id, sets_data)
     has_nuovi_codici    = any(sd.get('code_mode') == 'nuovo' for _sn, sd, _st in sets_data)
     return render_template('stats.html', cat=cat, match=m,
                            sets=all_sets, total_stats=total_stats, p_by_num=p_by_num,
@@ -1304,7 +1365,9 @@ def stats_view(cat_id, match_id):
                            attack_zone_stats=attack_zone_stats,
                            rotation_stats=rotation_stats,
                            continuity_stats=continuity_stats,
+                           reception_neg_stats=reception_neg_stats,
                            setter_dist_stats=setter_dist_stats,
+                           fault_stats=fault_stats,
                            has_nuovi_codici=has_nuovi_codici,
                            zone_layout=ZONE_LAYOUT, zone_names=ZONE_NAMES)
 
@@ -1402,16 +1465,18 @@ def build_ai_export(cat_id, match_id):
                     parts = [f"#{pnum} ({mn}')"]
 
                     if p.get('rec_total',0) > 0:
-                        parts.append(
-                            f"Ric: R+={p['rec_pos']} R-={p['rec_neg']} RE={p['rec_err']}"
-                            f" Pos={p['rec_positivity']}% Eff={p['rec_efficiency']}%"
-                        )
+                        rec_txt = f"Ric: R+={p['rec_pos']} R-={p['rec_neg']} RE={p['rec_err']}"
+                        if p.get('rec_out',0) > 0:
+                            rec_txt += f" RO={p['rec_out']}"
+                        rec_txt += f" Pos={p['rec_positivity']}% Eff={p['rec_efficiency']}%"
+                        parts.append(rec_txt)
                     if p.get('att_total',0) > 0:
-                        parts.append(
-                            f"Att: Kill={p['attack_kill']} Cont={p['attack_cont']}"
-                            f" Err={p['attack_err']} Mur={p['attack_blk']}"
-                            f" Pos={p['att_positivity']}% Eff={p['att_efficiency']}%"
-                        )
+                        att_txt = (f"Att: Kill={p['attack_kill']} Cont={p['attack_cont']}"
+                                   f" Err={p['attack_err']} Mur={p['attack_blk']}")
+                        if p.get('attack_net',0) > 0:
+                            att_txt += f" Rete={p['attack_net']}"
+                        att_txt += f" Pos={p['att_positivity']}% Eff={p['att_efficiency']}%"
+                        parts.append(att_txt)
                     sv = p.get('serve_ace',0) + p.get('serve_err',0)
                     if sv > 0:
                         parts.append(f"Serv: Ace={p['serve_ace']} Err={p['serve_err']}")
@@ -1419,6 +1484,10 @@ def build_ai_export(cat_id, match_id):
                         parts.append(f"Muro: Pt={p['block_pt']} Err={p['block_err']} Camp={p.get('block_touch',0)}")
                     if p.get('def_pos',0) + p.get('def_err',0) > 0:
                         parts.append(f"Dif: Pos={p['def_pos']} Err={p['def_err']}")
+                    if p.get('fault_total',0) > 0:
+                        parts.append(f"Falli: Tratt={p['fault_ft']} Doppia={p['fault_fd']} Salto={p['fault_fs']}")
+                    if p.get('set_p1',0) + p.get('set_p2',0) + p.get('set_pc',0) > 0:
+                        parts.append(f"Alzate ric.: P1={p['set_p1']} P2={p['set_p2']} PC={p['set_pc']}")
                     parts.append(f"+Pt={p['pts_scored']} -Pt={p['pts_lost']}")
                     lines.append("    " + " | ".join(parts))
 
@@ -1433,18 +1502,20 @@ def build_ai_export(cat_id, match_id):
         row = [f"#{pnum} — {mn}' totali"]
 
         if p.get('rec_total',0) > 0:
-            row.append(
-                f"RICEZIONE: R+={p['rec_pos']} R-={p['rec_neg']} RE={p['rec_err']}"
-                f" | Positività={p['rec_positivity']}% Efficienza={p['rec_efficiency']}%"
-                f" (su {p['rec_total']} ric.)"
-            )
+            rec_row = f"RICEZIONE: R+={p['rec_pos']} R-={p['rec_neg']} RE={p['rec_err']}"
+            if p.get('rec_out',0) > 0:
+                rec_row += f" RO={p['rec_out']}"
+            rec_row += (f" | Positività={p['rec_positivity']}% Efficienza={p['rec_efficiency']}%"
+                       f" (su {p['rec_total']} ric.)")
+            row.append(rec_row)
         if p.get('att_total',0) > 0:
-            row.append(
-                f"ATTACCO: Kill={p['attack_kill']} Cont={p['attack_cont']}"
-                f" Err={p['attack_err']} Mur={p['attack_blk']}"
-                f" | Positività={p['att_positivity']}% Efficienza={p['att_efficiency']}%"
-                f" (su {p['att_total']} att.)"
-            )
+            att_row = (f"ATTACCO: Kill={p['attack_kill']} Cont={p['attack_cont']}"
+                       f" Err={p['attack_err']} Mur={p['attack_blk']}")
+            if p.get('attack_net',0) > 0:
+                att_row += f" Rete={p['attack_net']}"
+            att_row += (f" | Positività={p['att_positivity']}% Efficienza={p['att_efficiency']}%"
+                       f" (su {p['att_total']} att.)")
+            row.append(att_row)
         sv = p.get('serve_ace',0) + p.get('serve_err',0)
         if sv > 0:
             row.append(f"SERVIZIO: Ace={p['serve_ace']} Err={p['serve_err']}")
@@ -1452,6 +1523,10 @@ def build_ai_export(cat_id, match_id):
             row.append(f"MURO: Pt={p['block_pt']} Err={p['block_err']} Camp={p.get('block_touch',0)}")
         if p.get('def_pos',0)+p.get('def_err',0) > 0:
             row.append(f"DIFESA: Pos={p['def_pos']} Err={p['def_err']}")
+        if p.get('fault_total',0) > 0:
+            row.append(f"FALLI: Trattenuta={p['fault_ft']} Doppia={p['fault_fd']} Salto={p['fault_fs']}")
+        if p.get('set_p1',0) + p.get('set_p2',0) + p.get('set_pc',0) > 0:
+            row.append(f"ALZATE RICEVUTE: P1={p['set_p1']} P2={p['set_p2']} PC={p['set_pc']}")
         row.append(f"PUNTI: +{p['pts_scored']} / -{p['pts_lost']}")
         lines.append("\n  ".join(row))
         lines.append("")
@@ -1496,6 +1571,29 @@ def build_ai_export(cat_id, match_id):
                     )
         lines.append("")
 
+    # ── Recupero da ricezione negativa (R-, nuovi codici) ───────
+    cont_neg = compute_match_reception_negative(cat_id, match_id, sets_data)
+    ctn = cont_neg['team']
+    if ctn.get('rpos', 0) > 0:
+        lines.append("─── RECUPERO DA RICEZIONE NEGATIVA (R-) ─────────────────")
+        lines.append(f"  Ricezioni negative (R-, fuori dai 3 metri) totali: {ctn['rpos']}")
+        lines.append(f"  → Conversione (Kill dopo R-): "
+                     f"{ctn['kills']}/{ctn['rpos']} = {ctn['conv_pct']}%")
+        lines.append(f"  → Continuità (Kill+Cont dopo R-): "
+                     f"{ctn['kills']+ctn['cont']}/{ctn['rpos']} = {ctn['cont_pct']}%")
+        lines.append(f"  → Dispersione (Errore dopo R-): "
+                     f"{ctn['err']}/{ctn['rpos']} = {ctn['disp_pct']}%")
+        if cont_neg['by_receiver']:
+            lines.append("  Per ricettore (min 3 R-):")
+            for n, d in sorted(cont_neg['by_receiver'].items(),
+                               key=lambda x: x[1]['rpos'], reverse=True):
+                if d['rpos'] >= 3:
+                    lines.append(
+                        f"    #{n}: {d['rpos']} R- → "
+                        f"Conv={d['conv_pct']}% Cont={d['cont_pct']}% Disp={d['disp_pct']}%"
+                    )
+        lines.append("")
+
     # ── Analisi per rotazione ──────────────────────────────────
     rot_stats = compute_match_rotation_stats(cat_id, match_id, sets_data)
     if rot_stats and any(r['pts_scored']+r['pts_lost'] > 0
@@ -1529,6 +1627,31 @@ def build_ai_export(cat_id, match_id):
                 f"[{'+' if r['saldo']>=0 else ''}{r['saldo']:3}] "
                 f"SO={so_s:6} Brk={brk_s}{flag}"
             )
+        lines.append("")
+
+    # ── Falli per rotazione (nuovi codici: FT/FD/FS) ────────────
+    fault_stats = compute_match_fault_stats(cat_id, match_id, sets_data)
+    if fault_stats['total'] > 0:
+        lines.append("─── FALLI PER ROTAZIONE (nuovi codici) ──────────────────")
+        for slot in ROT_ORDER:
+            r = fault_stats['by_rotation'][slot]
+            if r['tot'] == 0:
+                continue
+            lines.append(f"  {ROT_LABELS[slot]:<38} "
+                         f"Trattenuta={r['FT']} Doppia={r['FD']} Salto={r['FS']} Tot={r['tot']}")
+        lines.append("")
+
+    # ── Distribuzione alzate (nuovi codici: P1/P2/PC) ───────────
+    sdist = compute_match_setter_distribution(cat_id, match_id, sets_data)
+    if sdist['total_tags'] > 0:
+        lines.append("─── DISTRIBUZIONE ALZATE (nuovi codici) ─────────────────")
+        for code, label in sdist['labels'].items():
+            d = sdist['by_type'][code]
+            if d['tot'] == 0:
+                continue
+            lines.append(f"  {code} — {label}: {d['tot']} alzate → "
+                         f"Kill={d['kills']} Cont={d['cont']} Err={d['err']} "
+                         f"| Conv={d['conv_pct']}% Eff={d['eff_pct']}%")
         lines.append("")
 
     # ── Prompt di analisi ─────────────────────────────────────

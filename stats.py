@@ -161,13 +161,15 @@ def enrich_stats(raw_stats):
 # CONTINUITÀ DI GIOCO
 # ─────────────────────────────────────────────────────────────
 
-def compute_game_continuity(sd):
+def _compute_reception_chain(sd, recv_action):
     """
-    Continuità del Gioco — Fase di Cambio Palla.
-    Collega ogni R+ al successivo attacco:
-      conv_pct = Kill / R+          (si finalizza)
-      cont_pct = (Kill+Cont) / R+   (si mantiene il pallone)
-      disp_pct = Err / R+           (si spreca la ricezione positiva)
+    Collega ogni evento di ricezione `recv_action` ('R+' o 'R-') al
+    successivo attacco dello stesso cambio palla:
+      conv_pct = Kill / ricezioni          (si finalizza)
+      cont_pct = (Kill+Cont) / ricezioni   (si mantiene il pallone)
+      disp_pct = Err / ricezioni           (si spreca la ricezione)
+    Logica condivisa da compute_game_continuity (R+) e
+    compute_reception_negative_stats (R-, nuovi codici).
     """
     events = sd.get('events', [])
     team   = {'rpos':0,'kills':0,'cont':0,'err':0,'no_attack':0}
@@ -184,14 +186,14 @@ def compute_game_continuity(sd):
             by_att[n] = {'rpos_received':0,'kills':0,'cont':0,'err':0}
         return by_att[n]
 
-    pending = None   # numero di maglia del ricettore dell'ultimo R+
+    pending = None   # numero di maglia del ricettore dell'ultima ricezione
 
     for ev in events:
         t      = ev.get('type')
         action = ev.get('action','')
         player = ev.get('player')
 
-        if t == 'stat' and action == 'R+':
+        if t == 'stat' and action == recv_action:
             if pending is not None:
                 team['no_attack'] += 1
             pending = player
@@ -240,6 +242,25 @@ def compute_game_continuity(sd):
         d['disp_pct'] = pct(d['err'],             r)
 
     return {'team':team,'by_receiver':by_recv,'by_attacker':by_att}
+
+
+def compute_game_continuity(sd):
+    """
+    Continuità del Gioco — Fase di Cambio Palla.
+    Collega ogni R+ al successivo attacco (vedi _compute_reception_chain).
+    """
+    return _compute_reception_chain(sd, 'R+')
+
+
+def compute_reception_negative_stats(sd):
+    """
+    Come compute_game_continuity ma per le ricezioni negative (R-): quante
+    ricezioni "fuori dai 3 metri" (nuovi codici) portano comunque a un
+    attacco vincente. Utile per misurare quanto la squadra recupera anche
+    da ricezioni imperfette. Restituisce la stessa struttura di
+    compute_game_continuity ({'team','by_receiver','by_attacker'}).
+    """
+    return _compute_reception_chain(sd, 'R-')
 
 
 # ─────────────────────────────────────────────────────────────
@@ -681,6 +702,86 @@ def compute_rotation_stats(sd):
         'rot_short':  ROT_SHORT,
         'rot_order':  ROT_ORDER,
     }
+
+
+# ─────────────────────────────────────────────────────────────
+# FALLI PER ROTAZIONE — "NUOVI CODICI" (FT/FD/FS)
+# ─────────────────────────────────────────────────────────────
+
+FAULT_CODES  = ('FT', 'FD', 'FS')
+FAULT_LABELS = {'FT': 'Trattenuta', 'FD': 'Doppia', 'FS': 'Salto 2ª→1ª linea'}
+
+
+def compute_fault_stats(sd):
+    """
+    Distribuzione dei falli (nuovi codici: FT/FD/FS) per rotazione e per
+    giocatore. Stessa logica di tracciamento rotazione di
+    compute_rotation_stats (slot del palleggiatore al momento del fallo).
+    Un set che non usa i nuovi codici non genera mai questi eventi, quindi
+    la funzione ritorna semplicemente struttura vuota (total=0).
+    """
+    events     = sd.get('events', [])
+    lineup     = list(sd.get('lineup', []))
+    setter_num = sd.get('palleggiatore')
+    our_serve  = sd.get('first_serve', 'us') == 'us'
+    cur        = list(lineup)
+
+    by_rotation = {i: {c: 0 for c in FAULT_CODES} for i in range(1, 7)}
+    by_player   = {}
+
+    if not cur:
+        return {'by_rotation': by_rotation, 'by_player': by_player, 'total': 0}
+
+    def get_setter_slot():
+        if setter_num and setter_num in cur:
+            return cur.index(setter_num) + 1
+        return 1
+
+    total = 0
+    for ev in events:
+        t = ev.get('type')
+
+        if t == 'setter_change':
+            setter_num = ev.get('setter_num')
+            continue
+
+        action = ev.get('action', '')
+        if t == 'point' and action in FAULT_CODES:
+            slot = get_setter_slot()
+            by_rotation[slot][action] += 1
+            player = ev.get('player')
+            if player is not None:
+                bp = by_player.setdefault(player, {c: 0 for c in FAULT_CODES})
+                bp[action] += 1
+            total += 1
+
+        if t == 'point':
+            if ev.get('points_us', 0) > 0:
+                if not our_serve:
+                    cur = cur[1:] + cur[:1]
+                    our_serve = True
+            else:
+                if our_serve:
+                    our_serve = False
+        elif t in ('substitution', 'libero_exchange'):
+            n1 = ev.get('n1')
+            n2 = ev.get('n2')
+            out = inp = None
+            if n1 and n2:
+                if n1 in cur:   out, inp = n1, n2
+                elif n2 in cur: out, inp = n2, n1
+            else:
+                out = ev.get('player_out')
+                inp = ev.get('player_in')
+            if out and inp:
+                cur = [inp if p==out else p for p in cur]
+                if out == setter_num:
+                    setter_num = inp
+
+    for slot in by_rotation:
+        by_rotation[slot]['tot'] = sum(by_rotation[slot][c] for c in FAULT_CODES)
+
+    return {'by_rotation': by_rotation, 'by_player': by_player, 'total': total}
 
 
 # ─────────────────────────────────────────────────────────────
