@@ -778,6 +778,47 @@
   <!-- DISTRIBUZIONE ALZATE (nuovi codici: P1/P2/PC) -->
   {% if setter_dist_stats and setter_dist_stats.total_tags > 0 %}
   <h3 class="stat-section-title">Distribuzione Alzate — Palleggiatore</h3>
+
+  {% set sd_labels = setter_dist_stats.labels %}
+  {% set sd_types  = setter_dist_stats.by_type %}
+  {% set sd_max    = sd_types.values()|map(attribute='tot')|max|default(1) %}
+  <div class="setter-analysis">
+    <div class="setter-heatmap-wrap">
+      <div class="setter-heatmap-label">Alzate per tipo ({{ setter_dist_stats.total_tags }} tot.) — colore = volume, testo = conv% / eff%</div>
+      <svg class="court-heatmap" viewBox="0 0 300 102" xmlns="http://www.w3.org/2000/svg">
+        {% for code, x in [('P1',0),('PC',100),('P2',200)] %}
+          {% set d = sd_types[code] %}
+          {% set alpha = (d.tot / sd_max * 0.85)|round(2) if sd_max > 0 else 0 %}
+          {% set dark = alpha > 0.5 %}
+          <rect x="{{ x+1 }}" y="1" width="98" height="100"
+                fill="{{ cat.color }}" fill-opacity="{{ alpha }}"
+                stroke="#30363d" stroke-width="1" rx="3"/>
+          <text x="{{ x+50 }}" y="28" text-anchor="middle" font-size="22" font-weight="900"
+                fill="{{ '#0d1117' if dark else cat.color }}">{{ d.tot }}</text>
+          <text x="{{ x+50 }}" y="46" text-anchor="middle" font-size="10"
+                fill="{{ '#0d1117' if dark else '#8b949e' }}">{{ code }} — {{ sd_labels[code] }}</text>
+          {% if d.tot > 0 %}
+          <text x="{{ x+50 }}" y="64" text-anchor="middle" font-size="9"
+                fill="{{ '#0d1117' if dark else ('#e6ae2e' if d.conv_pct and d.conv_pct >= 40 else '#f85149') }}">
+            Conv {{ d.conv_pct|int if d.conv_pct is not none else '–' }}%
+          </text>
+          <text x="{{ x+50 }}" y="80" text-anchor="middle" font-size="9"
+                fill="{{ '#0d1117' if dark else ('#e6ae2e' if d.eff_pct and d.eff_pct >= 20 else '#f85149') }}">
+            Eff {{ d.eff_pct|int if d.eff_pct is not none else '–' }}%
+          </text>
+          <text x="{{ x+50 }}" y="96" text-anchor="middle" font-size="8"
+                fill="{{ '#0d1117' if dark else '#8b949e' }}">
+            {{ (d.tot / setter_dist_stats.total_tags * 100)|round|int }}% tot
+          </text>
+          {% endif %}
+        {% endfor %}
+        <line x1="100" y1="0" x2="100" y2="102" stroke="#30363d" stroke-width="1"/>
+        <line x1="200" y1="0" x2="200" y2="102" stroke="#30363d" stroke-width="1"/>
+        <rect x="0" y="0" width="300" height="102" fill="none" stroke="#30363d" stroke-width="2" rx="4"/>
+      </svg>
+    </div>
+  </div>
+
   <div class="stats-table-wrap">
   <table class="data-table">
     <thead>
