@@ -66,6 +66,7 @@
     </div>
   </div>
 
+  {% if not has_nuovi_codici %}
   <!-- ANDAMENTO DELLA PARTITA -->
   {% if score_timeline %}
   <h2>📈 Andamento della Partita</h2>
@@ -796,6 +797,123 @@
   </table>
   {% endif %}
   </div><!-- /palleggiatore section -->
+  {% endif %}
+  {% endif %}<!-- /not has_nuovi_codici -->
+
+  <!-- STATISTICHE PALLEGGIO — NUOVI CODICI (P1/P2/PC) -->
+  {% if has_nuovi_codici and setter_dist_stats and setter_dist_stats.total_tags > 0 %}
+  <div class="page-break no-break">
+  <h2>Statistiche Palleggio — Alzate 1ª/2ª linea e Centrale</h2>
+
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+    <!-- Heatmap a 3 blocchi -->
+    <div style="flex:0 0 auto">
+      <h4>Alzate per tipo ({{ setter_dist_stats.total_tags }} tot.)</h4>
+      {% set sd_types = setter_dist_stats.by_type %}
+      {% set sd_max = sd_types.values()|map(attribute='tot')|max|default(1) %}
+      <svg viewBox="0 0 240 80" width="240" height="80" xmlns="http://www.w3.org/2000/svg"
+           style="border:1px solid #ccc;border-radius:4px">
+        {% for code,x in [('P1',0),('PC',80),('P2',160)] %}
+          {% set d = sd_types[code] %}
+          {% set alpha = (d.tot/sd_max*0.82)|round(2) if sd_max>0 else 0 %}
+          <rect x="{{ x+1 }}" y="1" width="78" height="78" fill="#1a5c2e" fill-opacity="{{ alpha }}"
+                stroke="#ccc" stroke-width="0.5" rx="2"/>
+          <text x="{{ x+40 }}" y="24" text-anchor="middle" font-size="18" font-weight="900"
+                fill="{{ '#fff' if alpha>0.5 else '#1a5c2e' }}">{{ d.tot }}</text>
+          <text x="{{ x+40 }}" y="38" text-anchor="middle" font-size="8"
+                fill="{{ '#fff' if alpha>0.5 else '#555' }}">{{ code }} — {{ setter_dist_stats.labels[code] }}</text>
+          {% if d.tot > 0 %}
+          <text x="{{ x+40 }}" y="53" text-anchor="middle" font-size="7.5"
+                fill="{{ '#fff' if alpha>0.5 else '#333' }}">Conv {{ d.conv_pct|int if d.conv_pct is not none else '–' }}%</text>
+          <text x="{{ x+40 }}" y="66" text-anchor="middle" font-size="7.5"
+                fill="{{ '#fff' if alpha>0.5 else '#333' }}">Eff {{ d.eff_pct|int if d.eff_pct is not none else '–' }}%</text>
+          {% endif %}
+        {% endfor %}
+        <line x1="80" y1="0" x2="80" y2="80" stroke="#ccc" stroke-width="0.5"/>
+        <line x1="160" y1="0" x2="160" y2="80" stroke="#ccc" stroke-width="0.5"/>
+        <rect x="0" y="0" width="240" height="80" fill="none" stroke="#999" stroke-width="1" rx="3"/>
+      </svg>
+      <p class="formula-note">Conv% = Kill / Alzate × 100 · Eff% = (Kill+Cont−Err) / Alzate × 100</p>
+    </div>
+
+    <!-- Tabella per tipo -->
+    <div style="flex:1;min-width:200px">
+      <h4>Dettaglio per tipo di alzata</h4>
+      <table style="width:100%;border-collapse:collapse;font-size:8.5px">
+        <thead>
+          <tr>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px;text-align:left">Tipo</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Tot.</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Kill</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Cont.</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Err.</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Conv%</th>
+            <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Eff%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for code, label in setter_dist_stats.labels.items() %}
+          {% set d = setter_dist_stats.by_type[code] %}
+          <tr style="background:{{ '#f7f7f7' if loop.index%2==0 else '#fff' }}">
+            <td style="padding:3px 5px;font-weight:700">{{ code }} — {{ label }}</td>
+            <td style="padding:3px 5px;text-align:center">{{ d.tot }}</td>
+            <td style="padding:3px 5px;text-align:center;color:{{ '#1a5c2e' if d.kills>0 else '#333' }};font-weight:{{ 'bold' if d.kills>0 else 'normal' }}">{{ d.kills }}</td>
+            <td style="padding:3px 5px;text-align:center">{{ d.cont }}</td>
+            <td style="padding:3px 5px;text-align:center;color:{{ '#c0392b' if d.err>0 else '#333' }}">{{ d.err }}</td>
+            <td style="padding:3px 5px;text-align:center">{{ d.conv_pct|string+'%' if d.conv_pct is not none else '—' }}</td>
+            {% set eff_color = '#1a5c2e' if d.eff_pct and d.eff_pct>=20 else '#c0392b' if d.eff_pct and d.eff_pct<0 else '#555' %}
+            <td style="padding:3px 5px;text-align:center;color:{{ eff_color }};font-weight:bold">{{ d.eff_pct|string+'%' if d.eff_pct is not none else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Dettaglio per attaccante -->
+  {% if setter_dist_stats.by_player %}
+  <h4>Dettaglio per attaccante</h4>
+  <table style="width:100%;border-collapse:collapse;font-size:8px">
+    <thead>
+      <tr>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px;text-align:left">N°</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px;text-align:left">Atleta</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Tipo</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Tot.</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Kill</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Err.</th>
+        <th style="background:#1a5c2e;color:#fff;padding:3px 5px">Eff%</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set row_i = namespace(n=0) %}
+      {% for pnum, codes in setter_dist_stats.by_player.items()|sort(attribute='0') %}
+      {% set info = p_by_num.get(pnum|int) %}
+      {% for code, label in setter_dist_stats.labels.items() %}
+      {% set d = codes[code] %}
+      {% if d.tot > 0 %}
+      {% set row_i.n = row_i.n + 1 %}
+      {% set ecolor = '#1a5c2e' if d.eff_pct and d.eff_pct>=20 else '#c0392b' if d.eff_pct and d.eff_pct<0 else '#333' %}
+      <tr style="background:{{ '#f7f7f7' if row_i.n%2==0 else '#fff' }}">
+        <td style="padding:2px 5px">
+          <span style="background:#1a5c2e;color:#fff;border-radius:2px;padding:0 3px;font-size:7.5px">{{ pnum }}</span>
+        </td>
+        <td style="padding:2px 5px">{{ info.name if info else '#'+pnum|string }}</td>
+        <td style="padding:2px 5px;text-align:center;font-weight:700">{{ code }}</td>
+        <td style="padding:2px 5px;text-align:center">{{ d.tot }}</td>
+        <td style="padding:2px 5px;text-align:center;color:{{ '#1a5c2e' if d.kills>0 else '#333' }}">{{ d.kills }}</td>
+        <td style="padding:2px 5px;text-align:center;color:{{ '#c0392b' if d.err>0 else '#333' }}">{{ d.err }}</td>
+        <td style="padding:2px 5px;text-align:center;font-weight:700;color:{{ ecolor }}">
+          {{ d.eff_pct|string+'%' if d.eff_pct is not none else '—' }}
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  </div><!-- /statistiche palleggio nuovi codici -->
   {% endif %}
 
   <!-- ATTACCHI — Heatmap per zona -->

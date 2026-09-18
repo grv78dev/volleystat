@@ -1838,6 +1838,8 @@ def report_view(cat_id, match_id):
     rotation_stats      = compute_match_rotation_stats(cat_id, match_id, sets_data)
     continuity_stats    = compute_match_continuity(cat_id, match_id, sets_data)
     score_timeline      = compute_match_score_timeline(cat_id, match_id, sets_data)
+    setter_dist_stats   = compute_match_setter_distribution(cat_id, match_id, sets_data)
+    has_nuovi_codici    = any(sd.get('code_mode') == 'nuovo' for _sn, sd, _st in sets_data)
     return render_template('report.html', cat=cat, match=m, club=get_club(),
                            sets=all_sets, total_stats=total_stats, p_by_num=p_by_num,
                            match_minutes=match_minutes, setter_stats=setter_stats,
@@ -1845,6 +1847,8 @@ def report_view(cat_id, match_id):
                            rotation_stats=rotation_stats,
                            continuity_stats=continuity_stats,
                            score_timeline=score_timeline,
+                           setter_dist_stats=setter_dist_stats,
+                           has_nuovi_codici=has_nuovi_codici,
                            zone_names=ZONE_NAMES,
                            generated=datetime.now().strftime('%d/%m/%Y %H:%M'))
 
