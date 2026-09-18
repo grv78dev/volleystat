@@ -1870,11 +1870,14 @@ def report_sintetico(cat_id, match_id):
     m = next((x for x in matches if x['id']==match_id), None)
     if not cat or not m: abort(404)
 
-    p_by_num, all_sets, total_stats = _build_stats(cat_id, match_id)
+    sets_data = get_match_sets(cat_id, match_id)
+    p_by_num, all_sets, total_stats = _build_stats(cat_id, match_id, sets_data)
+    has_nuovi_codici = any(sd.get('code_mode') == 'nuovo' for _sn, sd, _st in sets_data)
 
     RAW_KEYS = ('serve_ace','serve_err','attack_kill','attack_cont','attack_err',
-                'attack_blk','block_pt','block_err','block_touch','rec_pos','rec_neg','rec_err',
-                'def_pos','def_err','pts_scored','pts_lost')
+                'attack_blk','attack_net','block_pt','block_err','block_touch',
+                'rec_pos','rec_neg','rec_err','rec_out',
+                'def_pos','def_err','fault_ft','fault_fd','fault_fs','pts_scored','pts_lost')
 
     # Set in cui ogni giocatore ha partecipato (dict pnum → list di numeri set)
     _psets_tmp = {}
@@ -1920,6 +1923,7 @@ def report_sintetico(cat_id, match_id):
                            team_totals=team_totals,
                            all_sets=all_sets,
                            sorted_players=sorted_players,
+                           has_nuovi_codici=has_nuovi_codici,
                            generated=datetime.now().strftime('%d/%m/%Y %H:%M'))
 
 

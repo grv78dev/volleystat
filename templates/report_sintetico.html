@@ -268,11 +268,16 @@ body { font-size: 9px; background: #fff; }
         <!-- BATTUTA -->
         <th class="shdr-top grp-bat" colspan="2">BATTUTA</th>
         <!-- RICEZIONE -->
-        <th class="shdr-top grp-rec" colspan="3">RICEZIONE</th>
+        <th class="shdr-top grp-rec" colspan="{{ 4 if has_nuovi_codici else 3 }}">RICEZIONE</th>
         <!-- ATTACCO -->
-        <th class="shdr-top grp-att" colspan="4">ATTACCO</th>
+        <th class="shdr-top grp-att" colspan="{{ 5 if has_nuovi_codici else 4 }}">ATTACCO</th>
+        {% if has_nuovi_codici %}
+        <!-- FALLI (nuovi codici: al posto di MURO, non usato) -->
+        <th class="shdr-top grp-mur" colspan="3">FALLI</th>
+        {% else %}
         <!-- MURO -->
         <th class="shdr-top grp-mur" colspan="1">MURO</th>
+        {% endif %}
         <!-- PUNTI -->
         <th class="shdr-top grp-pt" colspan="2">PUNTI</th>
       </tr>
@@ -288,15 +293,24 @@ body { font-size: 9px; background: #fff; }
         <th class="col-std shdr-sub grp-bat">Ace</th>
         <!-- RICEZIONE -->
         <th class="col-std shdr-sub grp-rec">Err</th>
+        {% if has_nuovi_codici %}<th class="col-std shdr-sub grp-rec">In.Out</th>{% endif %}
         <th class="col-pct shdr-sub grp-rec">Pos%</th>
         <th class="col-pct shdr-sub grp-rec">Prf%</th>
         <!-- ATTACCO -->
         <th class="col-std shdr-sub grp-att">Err</th>
         <th class="col-std shdr-sub grp-att">Mur</th>
+        {% if has_nuovi_codici %}<th class="col-std shdr-sub grp-att">Rete</th>{% endif %}
         <th class="col-std shdr-sub grp-att">Pt</th>
         <th class="col-pct shdr-sub grp-att">Eff%</th>
+        {% if has_nuovi_codici %}
+        <!-- FALLI -->
+        <th class="col-std shdr-sub grp-mur">Tratt</th>
+        <th class="col-std shdr-sub grp-mur">Doppia</th>
+        <th class="col-std shdr-sub grp-mur">Salto</th>
+        {% else %}
         <!-- MURO -->
         <th class="col-std shdr-sub grp-mur">Pt</th>
+        {% endif %}
         <!-- PUNTI -->
         <th class="col-std shdr-sub grp-pt">Err</th>
         <th class="col-std shdr-sub grp-pt">Pt</th>
@@ -328,6 +342,11 @@ body { font-size: 9px; background: #fff; }
         <td class="col-std {% if p.rec_err > 0 %}v-bad{% else %}v-none{% endif %}">
           {{ p.rec_err if p.rec_err > 0 else '·' }}
         </td>
+        {% if has_nuovi_codici %}
+        <td class="col-std {% if p.rec_out > 0 %}v-bad{% else %}v-none{% endif %}">
+          {{ p.rec_out if p.rec_out > 0 else '·' }}
+        </td>
+        {% endif %}
         <td class="col-pct {% if p.rec_positivity is not none and p.rec_positivity >= 60 %}v-good{% elif p.rec_positivity is not none %}v-warn{% else %}v-none{% endif %}">
           {{ p.rec_positivity|string + '%' if p.rec_positivity is not none else '·' }}
         </td>
@@ -341,16 +360,28 @@ body { font-size: 9px; background: #fff; }
         <td class="col-std {% if p.attack_blk > 0 %}v-bad{% else %}v-none{% endif %}">
           {{ p.attack_blk if p.attack_blk > 0 else '·' }}
         </td>
+        {% if has_nuovi_codici %}
+        <td class="col-std {% if p.attack_net > 0 %}v-bad{% else %}v-none{% endif %}">
+          {{ p.attack_net if p.attack_net > 0 else '·' }}
+        </td>
+        {% endif %}
         <td class="col-std {% if p.attack_kill > 0 %}v-good{% else %}v-none{% endif %}">
           {{ p.attack_kill if p.attack_kill > 0 else '·' }}
         </td>
         <td class="col-pct {% if p.att_efficiency is not none and p.att_efficiency >= 40 %}v-good{% elif p.att_efficiency is not none and p.att_efficiency < 0 %}v-bad{% elif p.att_efficiency is not none %}v-warn{% else %}v-none{% endif %}">
           {{ p.att_efficiency|string + '%' if p.att_efficiency is not none else '·' }}
         </td>
+        {% if has_nuovi_codici %}
+        <!-- FALLI -->
+        <td class="col-std {% if p.fault_ft > 0 %}v-bad{% else %}v-none{% endif %}">{{ p.fault_ft if p.fault_ft > 0 else '·' }}</td>
+        <td class="col-std {% if p.fault_fd > 0 %}v-bad{% else %}v-none{% endif %}">{{ p.fault_fd if p.fault_fd > 0 else '·' }}</td>
+        <td class="col-std {% if p.fault_fs > 0 %}v-bad{% else %}v-none{% endif %}">{{ p.fault_fs if p.fault_fs > 0 else '·' }}</td>
+        {% else %}
         <!-- MURO -->
         <td class="col-std {% if p.block_pt > 0 %}v-good{% else %}v-none{% endif %}">
           {{ p.block_pt if p.block_pt > 0 else '·' }}
         </td>
+        {% endif %}
         <!-- PUNTI -->
         <td class="col-std {% if p.pts_lost > 0 %}v-bad{% else %}v-none{% endif %}">
           {{ p.pts_lost if p.pts_lost > 0 else '·' }}
@@ -373,13 +404,21 @@ body { font-size: 9px; background: #fff; }
         <td class="col-std">{{ t.serve_err if t.serve_err > 0 else '·' }}</td>
         <td class="col-std">{{ t.serve_ace if t.serve_ace > 0 else '·' }}</td>
         <td class="col-std">{{ t.rec_err if t.rec_err > 0 else '·' }}</td>
+        {% if has_nuovi_codici %}<td class="col-std">{{ t.rec_out if t.rec_out > 0 else '·' }}</td>{% endif %}
         <td class="col-pct">{{ t.rec_positivity|string + '%' if t.rec_positivity is not none else '·' }}</td>
         <td class="col-pct">{{ t.rec_prf|string + '%' if t.rec_prf is not none else '·' }}</td>
         <td class="col-std">{{ t.attack_err if t.attack_err > 0 else '·' }}</td>
         <td class="col-std">{{ t.attack_blk if t.attack_blk > 0 else '·' }}</td>
+        {% if has_nuovi_codici %}<td class="col-std">{{ t.attack_net if t.attack_net > 0 else '·' }}</td>{% endif %}
         <td class="col-std">{{ t.attack_kill if t.attack_kill > 0 else '·' }}</td>
         <td class="col-pct">{{ t.att_efficiency|string + '%' if t.att_efficiency is not none else '·' }}</td>
+        {% if has_nuovi_codici %}
+        <td class="col-std">{{ t.fault_ft if t.fault_ft > 0 else '·' }}</td>
+        <td class="col-std">{{ t.fault_fd if t.fault_fd > 0 else '·' }}</td>
+        <td class="col-std">{{ t.fault_fs if t.fault_fs > 0 else '·' }}</td>
+        {% else %}
         <td class="col-std">{{ t.block_pt if t.block_pt > 0 else '·' }}</td>
+        {% endif %}
         <td class="col-std">{{ t.pts_lost if t.pts_lost > 0 else '·' }}</td>
         <td class="col-std">{{ t.pts_scored if t.pts_scored > 0 else '·' }}</td>
       </tr>
@@ -398,10 +437,13 @@ body { font-size: 9px; background: #fff; }
         <th style="width:28px">Kill</th>
         <th style="width:32px">Err.Att</th>
         <th style="width:30px">Mur.Sub</th>
-        <th style="width:28px">Pt.Muro</th>
+        {% if has_nuovi_codici %}<th style="width:28px">Rete</th>{% endif %}
+        {% if not has_nuovi_codici %}<th style="width:28px">Pt.Muro</th>{% endif %}
         <th style="width:30px">Err.Ric</th>
+        {% if has_nuovi_codici %}<th style="width:28px">In.Out</th>{% endif %}
         <th style="width:30px">Pos%</th>
         <th style="width:30px">Prf%</th>
+        {% if has_nuovi_codici %}<th style="width:28px">Falli</th>{% endif %}
         <th style="width:35px">Err.Avv.</th>
         <th style="width:32px">Punti</th>
       </tr>
@@ -421,14 +463,17 @@ body { font-size: 9px; background: #fff; }
         <td class="{% if s.attack_kill > 0 %}v-good{% else %}v-none{% endif %}">{{ s.attack_kill if s.attack_kill > 0 else '·' }}</td>
         <td class="{% if s.attack_err > 0 %}v-bad{% else %}v-none{% endif %}">{{ s.attack_err if s.attack_err > 0 else '·' }}</td>
         <td class="{% if s.attack_blk > 0 %}v-bad{% else %}v-none{% endif %}">{{ s.attack_blk if s.attack_blk > 0 else '·' }}</td>
-        <td class="{% if s.block_pt > 0 %}v-good{% else %}v-none{% endif %}">{{ s.block_pt if s.block_pt > 0 else '·' }}</td>
+        {% if has_nuovi_codici %}<td class="{% if s.attack_net > 0 %}v-bad{% else %}v-none{% endif %}">{{ s.attack_net if s.attack_net > 0 else '·' }}</td>{% endif %}
+        {% if not has_nuovi_codici %}<td class="{% if s.block_pt > 0 %}v-good{% else %}v-none{% endif %}">{{ s.block_pt if s.block_pt > 0 else '·' }}</td>{% endif %}
         <td class="{% if s.rec_err > 0 %}v-bad{% else %}v-none{% endif %}">{{ s.rec_err if s.rec_err > 0 else '·' }}</td>
+        {% if has_nuovi_codici %}<td class="{% if s.rec_out > 0 %}v-bad{% else %}v-none{% endif %}">{{ s.rec_out if s.rec_out > 0 else '·' }}</td>{% endif %}
         <td class="{% if s.rec_positivity is not none and s.rec_positivity >= 60 %}v-good{% elif s.rec_positivity is not none %}v-warn{% else %}v-none{% endif %}">
           {{ s.rec_positivity|string + '%' if s.rec_positivity is not none else '·' }}
         </td>
         <td class="{% if s.rec_prf is not none and s.rec_prf >= 30 %}v-good{% elif s.rec_prf is not none %}v-warn{% else %}v-none{% endif %}">
           {{ s.rec_prf|string + '%' if s.rec_prf is not none else '·' }}
         </td>
+        {% if has_nuovi_codici %}<td class="{% if s.fault_total > 0 %}v-bad{% else %}v-none{% endif %}">{{ s.fault_total if s.fault_total > 0 else '·' }}</td>{% endif %}
         <td class="{% if err_avv > 0 %}v-good{% else %}v-none{% endif %}">{{ err_avv if err_avv > 0 else '·' }}</td>
         <td style="font-weight:700">{{ st.state.score_us }}</td>
       </tr>
@@ -444,10 +489,13 @@ body { font-size: 9px; background: #fff; }
         <td class="{% if t.attack_kill > 0 %}v-good{% else %}v-none{% endif %}">{{ t.attack_kill if t.attack_kill > 0 else '·' }}</td>
         <td class="{% if t.attack_err > 0 %}v-bad{% else %}v-none{% endif %}">{{ t.attack_err if t.attack_err > 0 else '·' }}</td>
         <td class="{% if t.attack_blk > 0 %}v-bad{% else %}v-none{% endif %}">{{ t.attack_blk if t.attack_blk > 0 else '·' }}</td>
-        <td class="{% if t.block_pt > 0 %}v-good{% else %}v-none{% endif %}">{{ t.block_pt if t.block_pt > 0 else '·' }}</td>
+        {% if has_nuovi_codici %}<td class="{% if t.attack_net > 0 %}v-bad{% else %}v-none{% endif %}">{{ t.attack_net if t.attack_net > 0 else '·' }}</td>{% endif %}
+        {% if not has_nuovi_codici %}<td class="{% if t.block_pt > 0 %}v-good{% else %}v-none{% endif %}">{{ t.block_pt if t.block_pt > 0 else '·' }}</td>{% endif %}
         <td class="{% if t.rec_err > 0 %}v-bad{% else %}v-none{% endif %}">{{ t.rec_err if t.rec_err > 0 else '·' }}</td>
+        {% if has_nuovi_codici %}<td class="{% if t.rec_out > 0 %}v-bad{% else %}v-none{% endif %}">{{ t.rec_out if t.rec_out > 0 else '·' }}</td>{% endif %}
         <td class="{% if t.rec_positivity is not none %}v-good{% else %}v-none{% endif %}">{{ t.rec_positivity|string + '%' if t.rec_positivity is not none else '·' }}</td>
         <td class="{% if t.rec_prf is not none %}v-good{% else %}v-none{% endif %}">{{ t.rec_prf|string + '%' if t.rec_prf is not none else '·' }}</td>
+        {% if has_nuovi_codici %}<td class="{% if t.fault_total > 0 %}v-bad{% else %}v-none{% endif %}">{{ t.fault_total if t.fault_total > 0 else '·' }}</td>{% endif %}
         <td>—</td>
         <td style="font-weight:800">{{ t.pts_scored if t.pts_scored > 0 else '·' }}</td>
       </tr>
