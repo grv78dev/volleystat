@@ -3,6 +3,27 @@
 Applicazione leggera per il rilevamento statistico delle partite di pallavolo.
 Funziona **completamente offline**, si avvia nel browser.
 
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-backend-000000?logo=flask&logoColor=white)
+![Offline](https://img.shields.io/badge/Funziona-offline-2E7D32)
+![Piattaforme](https://img.shields.io/badge/Piattaforme-Windows%20%7C%20macOS%20%7C%20Linux-informational)
+
+<p align="center">
+  <img src="docs/screenshots/set-live.jpg" alt="Rilevamento live di un set: campo con rotazione, comandi rapidi ed eventi in tempo reale" width="850">
+</p>
+
+---
+
+## Screenshot
+
+| | |
+|---|---|
+| **Dashboard categoria** — prossime partite, risultati recenti, riferimento comandi | ![Dashboard](docs/screenshots/dashboard.jpg) |
+| **Rilevamento live** — campo con rotazione automatica, comandi da tastiera, eventi in tempo reale | ![Set live](docs/screenshots/set-live.jpg) |
+| **Statistiche partita** — heatmap alzate palleggiatore, distribuzione attacco, efficienza per zona | ![Statistiche](docs/screenshots/statistiche.jpg) |
+| **Rosa & trend** — atleti, ruoli, andamento prestazioni nel tempo | ![Rosa](docs/screenshots/rosa.jpg) |
+| **Report stampabile** — andamento punto a punto, esportabile in PDF | ![Report](docs/screenshots/report.jpg) |
+
 ---
 
 ## Installazione (Ubuntu / Linux)
